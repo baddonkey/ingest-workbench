@@ -2,13 +2,17 @@
 
 Python/FastAPI and Angular reference workflow for eCH-0160 SIP intake, preparation, m:n arrangement and AIP candidates. This is not a production archival acceptance system.
 
+![Ingest Packager showing the classification navigator, expanded dossiers and metadata editor](docs/images/workspace.png)
+
+[Read the illustrated user manual](docs/user-manual.md) for a step-by-step tour of receipt, preparation, review and candidate generation.
+
 This is a private, non-commercial educational project exploring ingest tools and the potential of agentic programming.
 
 The project is available under the [MIT License](LICENSE), which permits commercial use. See [third-party notices](THIRD_PARTY_NOTICES.md) for bundled material.
 
 Project version 0.0.1 is recorded in [pyproject.toml](pyproject.toml), the frontend package metadata and the API. Python dependencies remain in the backend requirements files.
 
-Read the [consolidated specification](docs/specification.md) for the architecture, data layout, behavioral contract and operating rules. Track unfinished work in the [gap list](docs/gap-list.md). Those are the only project documentation sources of truth; retained license texts and source provenance are separate inputs.
+Read the [consolidated specification](docs/specification.md) for the architecture, data layout, behavioral contract and operating rules. Track unfinished work in the [gap list](docs/gap-list.md). Those remain the sources of truth for the product contract and open work; the user manual is practical guidance, not a separate specification.
 
 ## Start with Podman
 
