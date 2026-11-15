@@ -65,11 +65,11 @@ test('KOST progress, reruns and frozen targets preserve unsaved metadata',async(
   await expect(about).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(about).toBeHidden();
-  const panel=page.getByRole('region',{name:'KOST-Validation',exact:true});
+  const panel=page.getByRole('region',{name:'SIP-Validation',exact:true});
   await expect(editor.locator('.tool-tabs').getByRole('button',{name:'Validation help',exact:true})).toHaveCount(0);
   expect((await page.request.get('/package-turbo/scan-search.svg')).headers()['content-type']).toContain('image/svg+xml');
   await expect(panel).toBeHidden();
-  await editor.locator('.reference-toolbar').getByRole('button',{name:'KOST-Validation',exact:true}).click();
+  await editor.locator('.reference-toolbar').getByRole('button',{name:'SIP-Validation',exact:true}).click();
   await expect(panel).toBeVisible();
   await expect(panel.locator('details').first()).toHaveAttribute('open','');
   await expect(panel.locator('.kost-status')).toHaveText('Queued');
@@ -124,12 +124,12 @@ test('KOST progress, reruns and frozen targets preserve unsaved metadata',async(
   const statusBox=await topStatus.boundingBox(),languageBox=await editor.locator('.workspace-language').boundingBox(),searchBox=await editor.locator('.quick-search').boundingBox();
   for(const item of [languageBox,searchBox])expect(statusBox&&item&&Math.abs(statusBox.y+statusBox.height/2-item.y-item.height/2)).toBeLessThan(2);
   const organisation=editor.getByRole('textbox',{name:'Submitting organisation',exact:true});
-  await organisation.fill('Unsaved while KOST validates');
+  await organisation.fill('Unsaved while SIP validation runs');
   latest={...latest,remote_status:'running'};
   await page.clock.fastForward(5100);
   await expect(panel.locator('.kost-status')).toHaveText('Running');
-  await expect(organisation).toHaveValue('Unsaved while KOST validates');
-  await expect(panel.getByRole('button',{name:'Re-run KOST validation',exact:true})).toBeDisabled();
+  await expect(organisation).toHaveValue('Unsaved while SIP validation runs');
+  await expect(panel.getByRole('button',{name:'Re-run SIP validation',exact:true})).toBeDisabled();
   latest={...latest,state:'COMPLETE',result:'invalid',finished:now+10,report_sha256:'c'.repeat(64),report_status:'retained',
     errors:[{module:'SIP',message:'<img src=x onerror="window.kostExecuted=true"> '+ 'Detailed failure '.repeat(30)}]};
   await page.clock.fastForward(5100);
@@ -139,18 +139,18 @@ test('KOST progress, reruns and frozen targets preserve unsaved metadata',async(
   const download=page.waitForEvent('download');
   await panel.getByRole('button',{name:'Download XML report',exact:true}).click();
   expect((await download).suggestedFilename()).toMatch(/kost-/);
-  await panel.getByRole('button',{name:'Re-run KOST validation',exact:true}).click();
+  await panel.getByRole('button',{name:'Re-run SIP validation',exact:true}).click();
   await expect(panel.locator('.kost-status')).toHaveText('Queued');
   await panel.getByText('Previous runs and reports',{exact:true}).click();
   await expect(panel.locator('.kost-history article')).toHaveCount(2);
   await expect(panel.locator('.kost-history article').last()).toContainText('Invalid');
   await panel.getByRole('combobox',{name:'Validated artifact'}).selectOption('frozen-test');
   await expect(panel.locator('.kost-status')).toHaveText('Not run');
-  await panel.getByRole('button',{name:'Run KOST validation',exact:true}).click();
+  await panel.getByRole('button',{name:'Run SIP validation',exact:true}).click();
   await expect(panel.locator('.kost-status')).toHaveText('Queued');
   expect(submitted?.['prepared_id']).toBe('frozen-test');
   expect(submitted?.['input_sha256']).toBe(frozenDigest);
-  await expect(organisation).toHaveValue('Unsaved while KOST validates');
+  await expect(organisation).toHaveValue('Unsaved while SIP validation runs');
   await page.screenshot({path:resolve('..','var','browser','kost-desktop.png'),fullPage:true});
   await page.setViewportSize({width:390,height:844});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
@@ -212,8 +212,8 @@ test('structured KOST table links exact files and isolates frozen versions',asyn
   await page.getByRole('button',{name:'Open Ingest Packager',exact:true}).click();
   const prepared=await (await preparation).json();
   const editor=page.getByRole('region',{name:'Versioned metadata editor'});
-  await editor.locator('.reference-toolbar').getByRole('button',{name:'KOST-Validation',exact:true}).click();
-  const panel=page.getByRole('region',{name:'KOST-Validation',exact:true});
+  await editor.locator('.reference-toolbar').getByRole('button',{name:'SIP-Validation',exact:true}).click();
+  const panel=page.getByRole('region',{name:'SIP-Validation',exact:true});
   const table=panel.getByRole('table');
   await expect(table.getByRole('row')).toHaveCount(4);
   await expect(panel.getByText('Validator error present',{exact:true})).toBeVisible();
@@ -286,8 +286,8 @@ test('live KOST service validates a received SIP and retains rerun history',asyn
   async function latest(){const response=await page.request.get(base,{headers});expect(response.ok()).toBeTruthy();return (await response.json()).targets[0].latest;}
   await page.getByRole('button',{name:'Open Ingest Packager',exact:true}).click();
   const editor=page.getByRole('region',{name:'Versioned metadata editor'});
-  await editor.locator('.reference-toolbar').getByRole('button',{name:'KOST-Validation',exact:true}).click();
-  const panel=page.getByRole('region',{name:'KOST-Validation',exact:true});
+  await editor.locator('.reference-toolbar').getByRole('button',{name:'SIP-Validation',exact:true}).click();
+  const panel=page.getByRole('region',{name:'SIP-Validation',exact:true});
   await expect.poll(async()=>(await latest())?.state,{timeout:150_000,intervals:[1000,3000,5000]}).toBe('COMPLETE');
   const first=await latest();
   expect(['valid','invalid']).toContain(first.result);
@@ -296,9 +296,9 @@ test('live KOST service validates a received SIP and retains rerun history',asyn
   expect(first.report_sha256).toMatch(/^[a-f0-9]{64}$/);
   const report=await page.request.get(base+'/runs/'+first.id+'/report',{headers});
   expect(report.ok()).toBeTruthy();expect(report.headers()['content-disposition']).toContain('attachment');
-  await panel.getByRole('button',{name:'Refresh KOST status',exact:true}).click();
+  await panel.getByRole('button',{name:'Refresh SIP Validator status',exact:true}).click();
   const queued=page.waitForResponse(response=>response.url()===base && response.request().method()==='POST');
-  await panel.getByRole('button',{name:'Re-run KOST validation',exact:true}).click();
+  await panel.getByRole('button',{name:'Re-run SIP validation',exact:true}).click();
   const second=await (await queued).json();expect(second.id).not.toBe(first.id);
   expect(second.filename).toBe(transfer.sips[0].original_filename);
   await expect.poll(async()=>(await latest())?.state,{timeout:60_000,intervals:[1000,3000,5000]}).toBe('COMPLETE');

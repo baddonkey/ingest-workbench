@@ -107,8 +107,8 @@ test('Package Turbo workspace patterns integrate with authenticated preserved SI
   await expect(page.getByRole('heading', { name: 'Define archival boundaries', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Ingest Packager', exact: true }).click();
   const editor = page.getByRole('region', { name: 'Versioned metadata editor', exact: true });
-  await editor.locator('.reference-toolbar').getByRole('button', { name: 'KOST-Validation', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'KOST-Validation', exact: true })).toBeVisible();
+  await editor.locator('.reference-toolbar').getByRole('button', { name: 'SIP-Validation', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'SIP-Validation', exact: true })).toBeVisible();
   const after = await (await fetch(api + '/api/transfers/' + transfer.id, { headers: { Authorization: 'Bearer ' + token } })).json();
   expect(after.revision).toBe(beforeRevision);
   expect(after.events.length).toBe(beforeEvents);
