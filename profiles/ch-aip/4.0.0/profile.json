@@ -1,0 +1,19 @@
+{
+  "id": "urn:ch-archive:aip-profile:4.0.0",
+  "version": "4.0.0",
+  "status": "proposed institutional profile; not a registered METS profile",
+  "metadata": {"mets": "1.12.1", "premis": "3.0", "description": "source-projected archival hierarchy JSON/1.0"},
+  "serialization": "ZIP transport with complete SHA-256 manifest; sealed bytes are immutable",
+  "input_profiles": ["1.0", "1.1", "1.2.0", "1.3.0"],
+  "required_files": ["aip.json", "metadata/description.json", "metadata/lineage.json", "metadata/preservation-context.json", "metadata/representation.json", "metadata/mets.xml", "metadata/premis.xml", "evidence/events.json", "evidence/preparation/snapshot.json", "manifest-sha256.txt"],
+  "identity": "Stable logical AIP UUID, monotonic immutable package version, version UUID and predecessor package SHA-256",
+  "logical_units": "Top-level dossiers with all nested dossiers, maps, documents, ordered file references and ancestor context",
+  "rights": "Unassessed by default; source-scoped documented grants and explicit review of source restrictions are required for readiness",
+  "representation_information": "Per-object format registry assertions, significant properties and embedded documentation resources; unknown remains blocking",
+  "checksums": "SHA-256 manifest covers every member except itself; METS fileSec covers every member except METS and the manifest; outer package digest is external",
+  "evidence": "Complete transfer preparation dossier embedded by digest: original and selected SIPs, editing history, freezes, receipt checks, independent preparation review and documentation.",
+  "acceptance": "Structural validity, preservation readiness, institutional profile approval and archival acceptance are separate gates",
+  "selected_inputs": "Source SHA-256 and selected SHA-256 are separate. Metadata and payload project exact reviewed selected ZIPs; operational source SIPs remain unchanged.",
+  "authorization": "Explicit independent reviewer authorization binds preparation review, selected plan/inputs/policy/context and this profile. Candidate authorization is not institutional acceptance.",
+  "scope": "Every target embeds the shared transfer preparation dossier because review covers all m:n targets. Not an independently redacted subset; local package bounds apply."
+}

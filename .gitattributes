@@ -1,0 +1,13 @@
+# Source text uses LF, including on Windows checkouts.
+* text=auto eol=lf
+
+# Byte-pinned validation inputs, trusted profiles and third-party assets must
+# survive Git add/checkout unchanged. -text disables EOL conversion, not diffing.
+fixtures/** -text
+schemas/** -text
+profiles/** -text
+frontend/public/package-turbo/** -text
+backend/licenses/** -text
+docs/licenses/** -text
+*.zip -text
+*.png -text

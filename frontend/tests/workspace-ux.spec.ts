@@ -1,0 +1,81 @@
+import {test,expect} from '@playwright/test';
+import {randomUUID} from 'node:crypto';
+import {resolve} from 'node:path';
+
+test.use({actionTimeout:20_000});
+test.setTimeout(60_000);
+
+test('workspace panes sample dossiers, coordinate selection, preserve proposals and support four languages',async({page})=>{
+  const api=process.env['ARCHIVE_BROWSER_API']||'http://localhost:8000';
+  if(api!=='http://localhost:8000')await page.route('http://localhost:8000/api/**',route=>route.continue({url:route.request().url().replace('http://localhost:8000',api)}));
+  const errors:string[]=[];let token='';
+  page.on('pageerror',error=>errors.push(error.message));
+  page.on('response',async response=>{if(response.url().endsWith('/protocol/openid-connect/token')&&response.ok())token=(await response.json()).access_token;});
+  await page.setViewportSize({width:1280,height:720});
+  await page.goto('/');await page.getByRole('textbox',{name:'Username or email'}).fill('operator');await page.getByRole('textbox',{name:'Password',exact:true}).fill('operator-local-only');await page.getByRole('button',{name:'Sign In',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Refresh',exact:true})).toBeEnabled();
+  const title='Workspace UX '+randomUUID();await page.getByRole('textbox',{name:'New transfer title'}).fill(title);await page.getByRole('button',{name:'Create',exact:true}).click();
+  await page.locator('input[type=file]').first().setInputFiles(resolve('..','fixtures','reference-1.3.zip'));await page.getByRole('button',{name:'Inspect & add SIP'}).click();await expect(page.getByText('Internal checks passed',{exact:true})).toBeVisible();
+  const response=await fetch(api+'/api/transfers',{headers:{Authorization:'Bearer '+token}});expect(response.ok).toBeTruthy();const transfer=(await response.json()).find((t:{title:string})=>t.title===title);
+  const preparation=await fetch(api+'/api/transfers/'+transfer.id+'/sips/'+transfer.sips[0].id+'/preparation',{headers:{Authorization:'Bearer '+token}});expect(preparation.ok).toBeTruthy();const doc=await preparation.json();
+  const submission=doc.nodes.find((n:{kind:string})=>n.kind==='ablieferung');const dossiers=doc.nodes.filter((n:{kind:string})=>n.kind==='dossier');const dossier=dossiers[0];const provenance=doc.nodes.find((n:{kind:string})=>n.kind==='provenienz');
+  await page.getByRole('button',{name:'Open Ingest Packager',exact:true}).click();const editor=page.getByRole('region',{name:'Versioned metadata editor'});
+  await expect(editor.getByRole('navigation',{name:'Classification navigator',exact:true})).toBeVisible();
+  await expect(editor.locator('[data-object-id="'+dossier.id+'"]').first()).toBeVisible();
+  await page.screenshot({path:resolve('..','var','local-evidence','current','workspace-ux-after-desktop.png'),fullPage:true});
+  await editor.locator('.tool-tabs').getByRole('button',{name:'Sample',exact:true}).click();
+  await editor.getByRole('combobox',{name:'Mode',exact:true}).selectOption('absolute');
+  await editor.getByRole('spinbutton',{name:'Size',exact:true}).fill('2');
+  await editor.getByRole('button',{name:'Draw',exact:true}).click();
+  const sampleTable=editor.getByRole('table',{name:'Sample',exact:true});
+  await expect(sampleTable.locator('thead th')).toHaveText(['Reference','Dossier']);
+  await expect(sampleTable.locator('tbody tr')).toHaveCount(Math.min(2,dossiers.length));
+  const sampledDossier=sampleTable.locator('.sample-object-link').first(),sampledName=await sampledDossier.innerText();
+  const sampleDownload=page.waitForEvent('download');await editor.getByRole('button',{name:'Export',exact:true}).click();
+  expect((await sampleDownload).suggestedFilename()).toBe('ingest-packager-sample.csv');
+  await sampledDossier.click();await expect(editor.locator('.object-tab button[aria-current="page"]')).toContainText(sampledName);
+  // Classification stays above content on desktop, with the editor on its right.
+  const classification=await editor.locator('.classification-pane').boundingBox(),content=await editor.locator('.content-pane').boundingBox(),form=await editor.locator('.object-editor').boundingBox();
+  expect(classification!.y+classification!.height).toBeLessThanOrEqual(content!.y+1);expect(form!.x).toBeGreaterThan(classification!.x);
+  const root=editor.locator('.classification-pane .metadata-object').first();await root.focus();await page.keyboard.press('ArrowDown');await expect(editor.locator('.classification-pane .metadata-object').nth(1)).toBeFocused();await page.keyboard.press('Home');await expect(root).toBeFocused();
+  const disclosure=editor.locator('.classification-pane button.disclosure').first();await disclosure.click();await expect(disclosure).toHaveAttribute('aria-expanded','false');await expect(editor.locator('.classification-pane .metadata-object')).toHaveCount(1);await disclosure.click();
+  await editor.locator('[data-object-id="'+submission.id+'"]').click();
+  await editor.getByRole('textbox',{name:'Submitting organisation',exact:true}).fill('Pending workspace proposal');
+  await editor.locator('[data-object-id="'+dossier.id+'"]').click();await expect(editor.locator('[data-tab-id="'+dossier.id+'"]').first()).toHaveAttribute('aria-current','page');
+  await editor.getByRole('button',{name:'Changes · 1',exact:true}).click();await expect(editor.locator('.proposal')).toContainText('Pending workspace proposal');
+  await editor.locator('.object-tab').filter({has:page.locator('[data-tab-id="'+submission.id+'"]')}).locator('.close-tab').click();await expect(editor.locator('[data-tab-id="'+submission.id+'"]')).toHaveCount(0);
+  await editor.locator('.proposal button').click();
+  await editor.locator('[data-tab-id="'+submission.id+'"]').click();await expect(editor.getByRole('textbox',{name:'Submitting organisation',exact:true})).toHaveValue('Pending workspace proposal');
+  await editor.getByRole('button',{name:'Secondary fields',exact:true}).click();await expect(editor.getByRole('textbox',{name:'Submitting organisation',exact:true})).toBeVisible();
+  await editor.getByRole('button',{name:'Secondary fields',exact:true}).click();
+  page.once('dialog',dialog=>dialog.dismiss());await page.getByRole('button',{name:'Inspect original',exact:true}).click();await expect(editor).toBeVisible();await expect(editor.getByRole('textbox',{name:'Submitting organisation',exact:true})).toHaveValue('Pending workspace proposal');
+  await editor.getByRole('button',{name:'Search metadata',exact:true}).click();await editor.getByRole('searchbox',{name:'Search metadata',exact:true}).fill(dossier.title);
+  const searchRow=editor.locator('.metadata-search-table tbody tr').filter({hasText:dossier.title}).first();await expect(editor.locator('.metadata-search-table thead tr th')).toHaveCount(4);await expect(searchRow.locator('td')).toHaveCount(4);await searchRow.locator('button').click();await expect(editor.locator('[data-tab-id="'+dossier.id+'"]').first()).toHaveAttribute('aria-current','page');
+  await editor.getByRole('button',{name:'File metadata',exact:true}).click();await expect(editor.locator('.classification-pane')).toBeVisible();
+  await editor.locator('[data-tab-id="'+dossier.id+'"]').click();await expect(editor.getByRole('button',{name:'Metadata hierarchy',exact:true})).toHaveAttribute('aria-pressed','true');
+  for(const [language,label,navigation] of [['de','Language','Ordnungssystem-Navigator'],['fr','Sprache','Navigateur du plan de classement'],['it','Langue','Navigatore del piano di classificazione'],['en','Lingua','Classification navigator']]){await editor.getByRole('combobox',{name:label,exact:true}).selectOption(language);await expect(editor.getByRole('navigation',{name:navigation,exact:true})).toBeVisible();}
+  await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+  await editor.locator('[data-tab-id="'+submission.id+'"]').click();await expect(editor.getByRole('textbox',{name:'Submitting organisation',exact:true})).toHaveValue('Pending workspace proposal');
+  await page.screenshot({path:resolve('..','var','local-evidence','current','workspace-ux-after-mobile.png'),fullPage:true});
+  page.once('dialog',dialog=>dialog.accept());await editor.getByRole('button',{name:'Reload',exact:true}).click();await expect(editor.getByRole('textbox',{name:'Submitting organisation',exact:true})).not.toHaveValue('Pending workspace proposal');
+  const finalResponse=await fetch(api+'/api/transfers/'+transfer.id,{headers:{Authorization:'Bearer '+token}});expect(finalResponse.ok).toBeTruthy();const final=await finalResponse.json();expect(final.sips).toEqual(transfer.sips);expect(final.metadata_operations||[]).toHaveLength(0);
+  expect(errors).toEqual([]);
+});
+
+test('metadata search presents matching values as navigable table rows',async({page})=>{
+  const api=process.env['ARCHIVE_BROWSER_API']||'http://localhost:8000';
+  if(api!=='http://localhost:8000')await page.route('http://localhost:8000/api/**',route=>route.continue({url:route.request().url().replace('http://localhost:8000',api)}));
+  let token='';page.on('response',async response=>{if(response.url().endsWith('/protocol/openid-connect/token')&&response.ok())token=(await response.json()).access_token;});
+  await page.goto('/');await page.getByRole('textbox',{name:'Username or email'}).fill('operator');await page.getByRole('textbox',{name:'Password',exact:true}).fill('operator-local-only');await page.getByRole('button',{name:'Sign In',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Refresh',exact:true})).toBeEnabled();
+  const title='Metadata search '+randomUUID();await page.getByRole('textbox',{name:'New transfer title'}).fill(title);await page.getByRole('button',{name:'Create',exact:true}).click();
+  await page.locator('input[type=file]').first().setInputFiles(resolve('..','fixtures','reference-1.3.zip'));await page.getByRole('button',{name:'Inspect & add SIP'}).click();await expect(page.getByText('Internal checks passed',{exact:true})).toBeVisible();
+  const response=await fetch(api+'/api/transfers',{headers:{Authorization:'Bearer '+token}});expect(response.ok).toBeTruthy();const transfer=(await response.json()).find((item:{title:string})=>item.title===title);
+  const preparation=await fetch(api+'/api/transfers/'+transfer.id+'/sips/'+transfer.sips[0].id+'/preparation',{headers:{Authorization:'Bearer '+token}});expect(preparation.ok).toBeTruthy();const document=await preparation.json();const dossier=document.nodes.find((node:{kind:string})=>node.kind==='dossier');
+  await page.getByRole('button',{name:'Open Ingest Packager',exact:true}).click();const editor=page.getByRole('region',{name:'Versioned metadata editor'});
+  await editor.getByRole('button',{name:'Search metadata',exact:true}).click();await editor.getByRole('searchbox',{name:'Search metadata',exact:true}).fill(dossier.title);
+  const headers=editor.locator('.metadata-search-table thead th');await expect(headers).toHaveText(['Object','Object name','Metadata field','Value']);
+  await expect(editor.locator('.editor-layout')).toHaveClass(/search-mode/);await expect(editor.locator('.classification-pane')).toBeHidden();await expect(editor.locator('.object-editor')).toBeHidden();
+  const row=editor.locator('.metadata-search-table tbody tr').filter({hasText:dossier.title}).first();await expect(row.locator('td')).toHaveCount(4);await expect(row.locator('td').nth(3)).toHaveText(dossier.title);
+  await row.locator('button').click();await expect(editor.locator('[data-tab-id="'+dossier.id+'"]').first()).toHaveAttribute('aria-current','page');await expect(editor.locator('.object-editor')).toBeVisible();await expect(editor.locator('.editor-layout')).not.toHaveClass(/search-mode/);
+});

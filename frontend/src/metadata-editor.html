@@ -1,0 +1,197 @@
+<section class="metadata-workspace" aria-label="Versioned metadata editor" (contextmenu)="workspaceContext($event)">
+  @if(document();as doc){
+    <header class="workspace-chrome">
+      <nav class="menubar" [attr.aria-label]="text('menuBar')">
+        <details #packageMenu><summary>{{text('packageMenu')}}</summary><div class="menu">
+          <button (click)="packageMenu.open=false;chooseEditor('metadata','paket')">{{text('packageMetadata')}}</button>
+          <button disabled [title]="text('creationUnavailable')">{{text('newPackage')}}</button>
+          <button (click)="packageMenu.open=false;close.emit()" [disabled]="busy()"><img src="/package-turbo/folder-open.svg" alt="">{{text('openPackage')}}</button>
+          <button (click)="packageMenu.open=false;downloadWorking()"><img src="/package-turbo/file-text.svg" alt="">{{text('downloadMetadata')}}</button>
+          <button (click)="packageMenu.open=false;sourceDownload.emit('original')"><img src="/package-turbo/download.svg" alt="">{{text('downloadOriginal')}}</button>
+          <button (click)="packageMenu.open=false;inspectOriginal.emit()" [disabled]="busy()">Inspect original</button>
+          <button (click)="packageMenu.open=false;reload()" [disabled]="busy()">{{text('reload')}}</button>
+          <button (click)="packageMenu.open=false;close.emit()" [disabled]="busy()"><img src="/package-turbo/x.svg" alt="">{{text('closePackage')}}</button>
+        </div></details>
+        <details #editMenu><summary>{{text('editMenu')}}</summary><div class="menu">
+          <button (click)="editMenu.open=false;saveChanges()" [disabled]="!canSave()"><img src="/package-turbo/save.svg" alt="">{{text('saveChanges')}}</button>
+          <button (click)="editMenu.open=false;newObjectAction()" [disabled]="busy() || !canEdit() || !!pendingCount() || !creationOptions().length"><img src="/package-turbo/file-plus.svg" alt="">{{text('newObject')}}</button>
+          <button (click)="editMenu.open=false;startNote()" [disabled]="busy() || !canEdit() || !!pendingCount()"><img src="/package-turbo/sticky-note.svg" alt="">{{text('newNote')}}</button>
+          <button (click)="editMenu.open=false;action('undo')" [disabled]="busy() || !canEdit() || !doc.state.undo.length || !reason.trim()">{{text('undo')}}</button>
+          <button (click)="editMenu.open=false;action('redo')" [disabled]="busy() || !canEdit() || !doc.state.redo.length || !reason.trim()">{{text('redo')}}</button>
+          <button (click)="editMenu.open=false;setTool('changes')">{{text('changes')}}</button>
+        </div></details>
+        <details #viewMenu><summary>{{text('viewMenu')}}</summary><div class="menu">
+          <button (click)="viewMenu.open=false;chooseEditor('overview')">{{text('overview')}}</button><button (click)="viewMenu.open=false;chooseEditor('statistics')">{{text('statistics')}}</button>
+          <button (click)="viewMenu.open=false;setNavigator('inventory')">{{text('inventory')}}</button><button (click)="viewMenu.open=false;setTool('changes')">{{text('changes')}}</button>
+          <button (click)="viewMenu.open=false;arrange.emit()" [disabled]="busy() || !!pendingCount()">{{text('arrange')}}</button>
+        </div></details>
+        <details #extrasMenu><summary>{{text('extrasMenu')}}</summary><div class="menu">
+          <button (click)="extrasMenu.open=false;downloadWorking()"><img src="/package-turbo/file-text.svg" alt="">{{text('downloadMetadata')}}</button>
+          <button (click)="extrasMenu.open=false;showHistory()"><img src="/package-turbo/clock.svg" alt="">{{text('history')}}</button><button (click)="extrasMenu.open=false;openVersions()">{{text('frozenValidation')}}</button>
+        </div></details>
+        <details #helpMenu><summary>{{text('helpMenu')}}</summary><div class="menu"><button (click)="helpMenu.open=false;about.emit()">{{text('about')}}</button><a href="https://github.com/baddonkey/package-turbo-web/blob/661334909b481d42e9a1a4dc736d1393df8ebe92/docs/manual/user-manual.md" target="_blank" rel="noopener">{{text('referenceManual')}}</a><span>{{text('gate')}}</span></div></details>
+      </nav>
+      <div class="workspace-identity"><button class="workspace-brand" (click)="chooseEditor('overview')"><img src="/package-turbo/package-turbo.svg" alt=""><span><strong>Ingest Packager</strong><small>eCH-0160 SIP workspace</small></span></button><span class="package-name">{{displayName()}}@if(originalUploadName()){ <small [title]="originalFilename()">· Original upload: {{originalUploadName()}}</small>}</span>
+        @if(!canEdit()){<span class="read-only">{{text('readonly')}}</span>}
+        @if(kostEnabled()){<span class="kost-top-status" role="status" aria-live="off"><span>Advisory</span><span>Received SIP</span><strong>{{kostStatuses()['received'] || text('kostNotRun')}}</strong></span>}
+        <label class="workspace-language">{{text('language')}}<select [ngModel]="language()" (ngModelChange)="language.set($event)"><option value="de">DE</option><option value="en">EN</option><option value="fr">FR</option><option value="it">IT</option></select></label>
+        <label class="quick-search"><input type="search" [attr.aria-label]="text('workspaceSearch')" [placeholder]="text('workspaceSearch')" [ngModel]="search()" (ngModelChange)="search.set($event);setTool('search')"><img src="/package-turbo/search.svg" alt=""></label>
+      </div>
+      <nav class="reference-toolbar" [attr.aria-label]="text('packageActions')">
+        <button disabled [title]="text('creationUnavailable')"><img src="/package-turbo/file-plus.svg" alt="">{{text('newPackage')}}</button>
+        <button (click)="close.emit()" [disabled]="busy()"><img src="/package-turbo/folder-open.svg" alt="">{{text('openPackage')}}</button>
+        <button (click)="openKostValidation()"><img src="/package-turbo/shield-check.svg" alt="">KOST-Validation</button>
+        <button (click)="saveChanges()" [disabled]="!canSave()"><img src="/package-turbo/save.svg" alt="">{{text('saveChanges')}}</button>
+        <button (click)="close.emit()" [disabled]="busy()"><img src="/package-turbo/x.svg" alt="">{{text('closePackage')}}</button><i class="toolbar-separator"></i>
+        <button (click)="startNote()" [disabled]="busy() || !canEdit() || !!pendingCount()"><img src="/package-turbo/sticky-note.svg" alt="">{{text('newNote')}}</button>
+        <button (click)="showHistory()"><img src="/package-turbo/clock.svg" alt="">{{text('history')}} · {{doc.history.length}}</button>
+        <button (click)="openVersions()"><img src="/package-turbo/shield-check.svg" alt="">{{text('frozenValidation')}}</button>
+        <button (click)="action('undo')" [disabled]="busy() || !canEdit() || !doc.state.undo.length || !reason.trim()">{{text('undo')}}</button><button (click)="action('redo')" [disabled]="busy() || !canEdit() || !doc.state.redo.length || !reason.trim()">{{text('redo')}}</button>
+      </nav>
+    </header>
+    @if(error() && !noteDialog.open){<p role="alert" class="error">{{error()}}</p>}@if(message()){<p role="status" class="workspace-message">{{message()}}</p>}
+    <div #editorLayout class="editor-layout" [class.search-mode]="tool()==='search'" [style.--upper-pane-height]="upperPanePercent()+'%'">
+      <div class="navigator-pane">
+      <nav class="classification-pane" [attr.aria-label]="text('classificationNavigator')"><div class="pane-heading"><h4>{{text('classificationNavigator')}}</h4><button class="icon-button" [disabled]="busy() || !canEdit() || !!pendingCount() || !creationOptions().length" (click)="newObjectAction()" [attr.aria-label]="text('newObject')">+</button></div><div class="object-list" (keydown)="navigateList($event)">
+        @for(node of visibleClassification();track node.navigation_key){<ng-container [ngTemplateOutlet]="objectButton" [ngTemplateOutletContext]="{$implicit:node,source:'classification'}"/>}
+      </div></nav>
+      <nav class="content-pane" aria-label="Metadata objects"><div class="navigator-tabs"><button class="secondary" (click)="setNavigator('hierarchy')" [attr.aria-pressed]="navigator()==='hierarchy'"><img src="/package-turbo/file-text.svg" alt="">{{text('hierarchy')}}</button><button class="secondary" (click)="setNavigator('inventory')" [attr.aria-pressed]="navigator()==='inventory'"><img src="/package-turbo/folder-open.svg" alt="">{{text('inventory')}}</button></div><div class="pane-heading"><h4>{{navigator()==='hierarchy' ? text('hierarchy') : text('inventory')}}</h4><label class="navigator-search"><input type="search" [attr.aria-label]="text('search')" [ngModel]="query()" (ngModelChange)="query.set($event)"></label><button class="icon-button" [disabled]="busy() || !canEdit() || !!pendingCount() || !creationOptions().length" (click)="newObjectAction()" [attr.aria-label]="text('newObject')">+</button></div>@if(navigator()==='hierarchy'){<div class="tree-heading"><span>{{text('titel')}}</span><span>{{text('aktenzeichen')}}</span><span>{{text('entstehungszeitraum')}}</span><span>{{text('erscheinungsform')}}</span></div>}<div class="object-list" (keydown)="navigateList($event)">@for(node of visibleObjects();track node.navigation_key){<ng-container [ngTemplateOutlet]="objectButton" [ngTemplateOutletContext]="{$implicit:node,columns:navigator()==='hierarchy',source:navigator()}"/>}</div></nav>
+      </div>
+      <section class="object-editor" [attr.aria-label]="text('selectedObject')">
+        <dl class="sip-summary"><div><dt>{{text('ablieferungstyp')}}:</dt><dd>{{summary('ablieferung','ablieferungstyp')}}</dd></div><div><dt>{{text('aktenbildnerName')}}:</dt><dd>{{summary('provenienz','aktenbildnerName')}}</dd></div><div><dt>{{text('ablieferungsnummer')}}:</dt><dd>{{summary('ablieferung','ablieferungsnummer')}}</dd></div><div><dt>{{text('erscheinungsform')}}:</dt><dd>{{summary('ablieferung','erscheinungsform')}}</dd></div></dl>
+        <div class="working-form">
+          @if(editorView()==='overview' || editorView()==='metadata'){
+            @for(node of formNodes();track node.id){<article class="record" (contextmenu)="nodeContext($event,node)">
+              <h3><button class="record-heading" [attr.data-object-id]="editorView()==='overview' ? node.id : null" (click)="select(node.id)">{{text(node.kind,node.label)}} – {{recordTitle(node)}}</button></h3>
+              @if(editorView()==='metadata'){<nav class="breadcrumbs">@for(id of parents().get(node.id);track id){<button (click)="select(id)">{{objectTitle(id)}}</button>}</nav>}
+              @if(kostPaths()[node.source_id || ''];as filePath){<archive-kost-file-findings [report]="kostReport()" [path]="filePath" [inputSha256]="assessmentSha256()" [preparedId]="frozenCurrent()?.id || null"/>}
+              <div class="field-group">
+                @for(field of displayFields(node);track field.id){<section class="working-field" [hidden]="!secondary() && !primary(field)" [attr.data-field-tag]="field.tag" [class.dirty]="drafts().has(field.id!)" (contextmenu)="fieldContext($event,node,field)" (keydown)="fieldContextKey($event,node,field)">
+                  <div class="field-heading"><label>{{text(field.tag,field.label)}} @if(field.minimum){<span class="required" [title]="text('required')">*</span>}</label></div>
+                  <div class="field-input"><archive-metadata-field [field]="field" [rows]="fieldRows(field)" [language]="language()" [disabled]="busy() || structurePending() || !canEdit() || !field.editable" (changed)="stage(field,$event)"/>
+                  </div>
+                </section>}
+                <button class="additional-toggle" (click)="secondary.set(!secondary())" [attr.aria-expanded]="secondary()">{{secondary() ? '▾' : '▸'}} {{text('secondaryFields')}}</button>
+              </div>
+            </article>}
+          }
+          @if(editorView()==='statistics'){<h3>{{text('statistics')}}</h3><table class="summary-table"><tbody><tr><th>{{text('payloadFiles')}}</th><td>{{statistics()?.payload_files ?? '—'}}</td></tr><tr><th>{{text('payloadBytes')}}</th><td>{{statistics()?.payload_bytes | number}}</td></tr>@for(kind of editorKinds;track kind){<tr><th>{{text(kind)}}</th><td>{{countKind(kind)}}</td></tr>}</tbody></table><p>{{text('formatUnassessed')}}</p>}
+          @if(editorView()==='validation'){<h3>{{text('validation')}}</h3><p>{{text('workingValidationScope')}}</p><button (click)="openKostValidation()"><img src="/package-turbo/shield-check.svg" alt="">{{text('kostValidation')}}</button><button (click)="openVersions()">{{text('frozenValidation')}}</button><p>{{text('acceptanceClosed')}}</p>}
+        </div>        <nav class="object-tabs" [class.single-object]="tabs().length<2" [attr.aria-label]="text('openObjects')">@for(node of tabs();track node.id){<div class="object-tab"><button class="secondary" [attr.aria-current]="selected()===node.id ? 'page' : null" [class.active]="selected()===node.id" [attr.data-tab-id]="node.id" (click)="select(node.id)">{{text(node.kind,node.label)}} · {{node.title}}</button><button class="secondary close-tab" [disabled]="tabs().length===1" [attr.aria-label]="text('closeObject')+': '+node.title" (click)="closeObject(node.id)"><img src="/package-turbo/x.svg" alt=""></button></div>}</nav>
+        <nav class="editor-type-tabs" [attr.aria-label]="text('editorViews')"><button [class.active]="editorView()==='overview'" (click)="chooseEditor('overview')">{{text('overview')}}</button><button [class.active]="editorView()==='statistics'" (click)="chooseEditor('statistics')">{{text('statistics')}}</button><button [class.active]="editorView()==='validation'" (click)="validationView()">{{text('validation')}}</button>@for(kind of editorKinds;track kind){<button [disabled]="!hasKind(kind)" [class.active]="editorView()==='metadata' && selectedObject()?.kind===kind" (click)="chooseEditor('metadata',kind)">{{text(kind)}}</button>}</nav>
+      </section>
+      <div class="workspace-splitter" role="separator" aria-orientation="horizontal" aria-label="Resize editor and tools" tabindex="0"
+        [attr.aria-valuemin]="35" [attr.aria-valuemax]="80" [attr.aria-valuenow]="upperPanePercent()"
+        [attr.aria-valuetext]="'Editor height '+upperPanePercent()+' percent'"
+        (pointerdown)="startSplitterDrag($event)" (pointermove)="moveSplitter($event)"
+        (pointerup)="endSplitterDrag($event)" (pointercancel)="endSplitterDrag($event)"
+        (keydown)="splitterKeydown($event)"><span aria-hidden="true"></span></div>
+      <section class="tools-pane" [attr.aria-label]="text('tools')">
+        <nav class="tool-tabs" [attr.aria-label]="text('tools')"><button class="secondary" [attr.aria-pressed]="tool()==='kost'" (click)="openKostValidation()"><img src="/package-turbo/shield-check.svg" alt="">KOST-Validation</button><button class="secondary" [attr.aria-pressed]="tool()==='sample'" (click)="setTool('sample')"><img src="/package-turbo/scan-search.svg" alt="">{{text('sampling')}}</button><button class="secondary" [attr.aria-pressed]="tool()==='hierarchy'" (click)="setTool('hierarchy')"><img src="/package-turbo/file-text.svg" alt="">{{text('hierarchyTools')}}</button><button class="secondary" [attr.aria-pressed]="tool()==='notes'" (click)="setTool('notes')"><img src="/package-turbo/sticky-note.svg" alt="">{{text('notes')}} · {{visibleNotes().length}}</button><button class="secondary" (click)="openVersions()"><img src="/package-turbo/shield-check.svg" alt="">{{text('frozenValidation')}}</button><button class="secondary" [attr.aria-pressed]="tool()==='changes'" (click)="setTool('changes')"><img src="/package-turbo/file-text.svg" alt="">{{text('changes')}} · {{pendingCount()}}</button><button class="secondary" [attr.aria-pressed]="tool()==='search'" (click)="setTool('search')"><img src="/package-turbo/search.svg" alt="">{{text('workspaceSearch')}}</button><button class="secondary" [attr.aria-pressed]="tool()==='history'" (click)="showHistory()"><img src="/package-turbo/clock.svg" alt="">{{text('history')}}</button></nav>
+        <div class="tool-body">
+          <div class="kost-panel-container" [class.active]="tool()==='kost'" [hidden]="tool()!=='kost'"><archive-kost-validation [transferId]="transferId()" [sipId]="sipId()" [revision]="revision()" [sourceSha256]="sourceSha256()" (serviceEnabled)="kostEnabledChange.emit($event)" (statuses)="kostStatusesChange.emit($event)" (reportChanged)="kostReportChange.emit($event)" (fileSelected)="kostFileSelected.emit($event)"/></div>
+          @if(tool()==='sample'){
+            <form class="sample-toolbar" (ngSubmit)="drawSample()">
+              <label>{{text('sampleMode')}}<select name="sampleMode" [ngModel]="sampleMode()" (ngModelChange)="sampleMode.set($event)" [disabled]="sampleLoading()"><option value="absolute">{{text('sampleAbsolute')}}</option><option value="percent">{{text('samplePercent')}}</option></select></label>
+              <label>{{text('sampleCount')}}<input name="sampleSize" type="number" min="1" [max]="sampleMode()==='absolute'?500:100" step="1" [ngModel]="sampleSize()" (ngModelChange)="sampleSize.set($event)" [disabled]="sampleLoading()" required></label>
+              <button type="submit" [disabled]="sampleLoading() || !sampleSizeValid()">{{sampleLoading() ? text('operationInProgress') : text('sampleDraw')}}</button>
+              <button type="button" class="secondary" (click)="exportSample()" [disabled]="!sampleResult()?.items?.length">{{text('sampleExport')}}</button>
+            </form>
+            <p class="help sample-help">{{text('sampleHelp')}}</p>
+            @if(sampleResult();as result){
+              <div class="sample-table-scroll"><table class="notes-table sample-table" [attr.aria-label]="text('sampling')"><thead><tr><th scope="col">{{text('sampleReference')}}</th><th scope="col">{{text('sampleDossier')}}</th></tr></thead><tbody>
+                @for(item of result.items;track item.node_id){<tr><td>{{item.reference}}</td><td><button type="button" class="sample-object-link" (click)="select(item.node_id)">{{item.name}}</button></td></tr>}@empty{<tr><td colspan="2">{{text('sampleEmpty')}}</td></tr>}
+              </tbody></table></div>
+            }
+          }
+          @if(tool()==='hierarchy'){
+            <h3>{{text('newObject')}}</h3>
+            @if(!structurePending()){@for(option of creationOptions();track option.child_kind){<button class="secondary" (click)="startCreation(option)" [disabled]="busy() || !canEdit() || !!pendingCount()"><img src="/package-turbo/file-plus.svg" alt="">{{text('newObject')}} · {{text(option.child_kind)}}</button>}@empty{<p class="help">{{text('noCreationOption')}}</p>}}
+            @if(creationDraft();as draft){<section class="creation-proposal" [attr.aria-label]="text('newObject')"><p>{{objectTitle(draft.option.parent_id)}} · {{text(draft.option.child_kind)}}</p><p class="help">{{text('creationHelp')}}</p>
+              <label>{{text('objectCount')}}<input type="number" [min]="1" [max]="draft.option.maximum" [ngModel]="draft.count" (ngModelChange)="creationCount($event)" [disabled]="busy()"></label>
+              <button class="secondary" (click)="creationSecondary.set(!creationSecondary())" [disabled]="busy()">{{text('secondaryFields')}}</button>
+              @for(field of draft.option.fields;track field.tag){@if(field.minimum || field.tag==='titel' || creationSecondary()){<fieldset><legend>{{text(field.tag,field.label)}} @if(field.minimum){· {{text('required')}}}</legend><archive-metadata-field [field]="field" [rows]="draft.values[field.tag]" [language]="language()" [disabled]="busy()" (changed)="creationValue(field.tag,$event)"/></fieldset>}}
+              <div class="editor-actions"><button class="secondary" (click)="previewCreation()" [disabled]="busy() || !reason.trim()">{{text('previewCreation')}}</button><button class="secondary" (click)="cancelCreation()" [disabled]="busy()"><img src="/package-turbo/x.svg" alt="">{{text('discardCreation')}}</button></div>
+              @if(draft.preview;as preview){<section aria-label="Creation preview"><h4>{{text('creationPreview')}}</h4><ol>@for(object of preview.objects;track object.id){<li>{{object.title}} · {{object.source_id}}</li>}</ol>@for(field of draft.option.fields;track field.tag){@if(draft.values[field.tag].length){<p><b>{{text(field.tag,field.label)}}</b> · {{describe(draft.values[field.tag])}}</p>}}<button (click)="applyCreation()" [disabled]="busy() || !reason.trim()"><img src="/package-turbo/save.svg" alt="">{{text('applyCreation')}}</button></section>}
+            </section>}
+            <h3>{{text('objectOrder')}}</h3>@if(!hierarchyDraft()){<p class="help">{{text('hierarchyScope')}}</p>
+            @if(selectedGroup();as group){<p>{{objectTitle(group.parent_id)}} · {{text(group.child_kind)}}</p>
+              @if(canEdit()){<div class="editor-actions"><button class="secondary" (click)="stageReorder(-1)" [disabled]="!canReorder(-1)">{{text('previewUp')}}</button><button class="secondary" (click)="stageReorder(1)" [disabled]="!canReorder(1)">{{text('previewDown')}}</button></div>}
+              <ol class="current-order">@for(child of group.children;track child.id){<li [class.selected-order]="child.id===selected()">{{child.title}}</li>}</ol>
+            }@else{<p>{{text('noReorderGroup')}}</p>}}
+            @if(hierarchyDraft();as draft){<section class="hierarchy-preview" [attr.aria-label]="text('hierarchyPreview')"><b>{{objectTitle(draft.group.parent_id)}} · {{text(draft.group.child_kind)}}</b><div class="order-comparison"><div><b>{{text('before')}}</b><ol class="before-order">@for(child of draft.group.children;track child.id){<li>{{child.title}}</li>}</ol></div><div><b>{{text('after')}}</b><ol class="after-order">@for(id of draft.after_order;track id){<li>{{objectTitle(id)}}</li>}</ol></div></div><div class="editor-actions"><button (click)="applyReorder()" [disabled]="busy() || !reason.trim()"><img src="/package-turbo/save.svg" alt="">{{text('applyHierarchy')}}</button><button class="secondary" (click)="cancelReorder()" [disabled]="busy()"><img src="/package-turbo/x.svg" alt="">{{text('cancelHierarchy')}}</button></div></section>}
+          }
+          @if(tool()==='history'){
+
+          <h3>{{text('history')}}</h3>
+          @if(comparison();as differences){<section class="version-comparison" aria-label="Version comparison">@for(row of differences;track $index){<article><b>{{row.object}} · {{row.field}}</b><dl><dt>{{text('before')}}</dt><dd>{{row.before}}</dd><dt>{{text('after')}}</dt><dd>{{row.after}}</dd></dl></article>}@empty{<p>{{text('noDifferences')}}</p>}</section>}
+          <div class="history-table-scroll"><table class="history-table" [attr.aria-label]="text('history')"><thead><tr><th scope="col">{{text('historyNumber')}}</th><th scope="col">{{text('historyTime')}}</th><th scope="col">{{text('historyEvent')}}</th><th scope="col">{{text('historyOldValue')}}</th><th scope="col">{{text('historyNewValue')}}</th><th scope="col">{{text('historyActor')}}</th><th scope="col">{{text('status')}}</th><th scope="col">{{text('historyChecksum')}}</th></tr></thead><tbody>
+          @for(operation of doc.history.slice().reverse();track operation.id;let index=$index){<tr class="metadata-operation" tabindex="0" [attr.data-operation-id]="operation.id" (contextmenu)="historyContext($event,operation)" (keydown)="historyContextKey($event,operation)"><td>{{doc.history.length-index}}</td><td>{{operation.created | date:'dd.MM.yyyy HH:mm:ss'}}</td><td><button class="history-event-link" (click)="openHistory(operation)">{{historyLabel(operation)}}</button></td><td class="history-old-value">{{historyValue(operation,'before')}}</td><td class="history-new-value">{{historyValue(operation,'after')}}</td><td [title]="operation.actor">{{actorLabel(operation.actor)}}</td><td>{{text('historyRecorded')}}</td><td class="history-digest" [title]="operation.evidence_sha256">{{operation.evidence_sha256}}</td></tr>}@empty{<tr><td colspan="8">{{text('noHistory')}}</td></tr>}
+          </tbody></table></div>
+          }
+          @if(tool()==='notes'){
+            @if(notesOwner()){<div class="notes-scope"><button (click)="notesOwner.set(null)">{{text('notesAll')}}</button><span>{{objectTitle(notesOwner()!)}}</span></div>}
+            @if(canEdit() && selected()){<form class="note-form notes-composer" (ngSubmit)="saveNote()"><input id="new-preparation-note" name="noteText" [attr.aria-label]="text('noteText')" [placeholder]="text('notePlaceholder')" [ngModel]="noteDraft()?.before ? '' : noteDraft()?.text || ''" (ngModelChange)="typeNote($event)" [disabled]="busy() || structurePending() || drafts().size>0" maxlength="8000"><button type="submit" [disabled]="!canSaveNote()"><img src="/package-turbo/save.svg" alt="">{{text('saveNote')}}</button>@if(noteDraft() && noteDraft()!.node_id!==selected()){<small class="notes-owner">{{text('noteTarget')}}: {{objectTitle(noteDraft()!.node_id)}}</small>}@if(drafts().size){<small class="notes-owner">{{text('notesPendingFields')}}</small>}</form>}
+            <div class="notes-table-scroll"><table class="notes-table" [attr.aria-label]="text('notes')"><thead><tr><th scope="col">{{text('notesObject')}}</th><th scope="col">{{text('notesObjectName')}}</th><th scope="col">{{text('notesNote')}}</th><th scope="col">{{text('notesDate')}}</th><th scope="col">{{text('notesAuthor')}}</th></tr></thead><tbody>
+              @for(note of visibleNotes();track note.id){<tr class="preparation-note" tabindex="0" (contextmenu)="noteContext($event,note)" (keydown)="noteContextKey($event,note)" [attr.data-note-id]="note.id"><td>{{noteKind(note)}}</td><td>{{objectTitle(note.node_id)}}</td><td><button class="note-object-link" (click)="select(note.node_id)">{{note.text}}</button><small>{{text(note.purpose)}}</small></td><td>{{note.created | date:'dd.MM.yyyy HH:mm:ss'}}</td><td [title]="note.created_by">{{actorLabel(note.created_by)}}</td></tr>}@empty{<tr><td colspan="5">{{text('notesEmpty')}}</td></tr>}
+            </tbody></table></div>
+          }
+          @if(tool()==='changes'){
+            @if(hierarchyDraft();as draft){<article class="proposal"><button class="secondary" (click)="setTool('hierarchy')">{{objectTitle(draft.group.parent_id)}} · {{text('objectOrder')}}</button><p>{{orderText(draft.group.children,draft.after_order)}}</p></article>}
+            @if(creationDraft();as draft){<article class="proposal"><button class="secondary" (click)="setTool('hierarchy')">{{objectTitle(draft.option.parent_id)}} · {{text('newObject')}}</button><p>{{text(draft.option.child_kind)}} · {{draft.count}}</p></article>}
+
+            @if(noteDraft();as draft){<article class="proposal"><button class="secondary" (click)="select(draft.node_id);setTool('notes')">{{objectTitle(draft.node_id)}} · {{text('notes')}}</button><p>{{draft.text}}</p></article>}
+
+            @for(item of proposed();track item.field.id){<article class="proposal"><button class="secondary" (click)="select(item.node.id)">{{item.node.title}} · {{text(item.field.tag,item.field.label)}}</button><dl><dt>{{text('before')}}</dt><dd>{{describe(item.field.values)}}</dd><dt>{{text('after')}}</dt><dd>{{describe(fieldRows(item.field))}}</dd></dl></article>}@empty{<p>{{text('noProposals')}}</p>}
+          }
+          @if(tool()==='search'){
+            <label>{{text('workspaceSearch')}}<input type="search" [ngModel]="search()" (ngModelChange)="search.set($event)"></label>
+            @if(search().trim()){
+              <p class="search-hit-count">{{searchResults().length}} {{text('searchHits')}}</p>
+              <div class="metadata-search-scroll"><table class="notes-table metadata-search-table"><thead><tr><th scope="col">{{text('searchObject')}}</th><th scope="col">{{text('searchObjectName')}}</th><th scope="col">{{text('searchMetadata')}}</th><th scope="col">{{text('searchValue')}}</th></tr></thead><tbody>
+                @for(hit of searchResults();track hit.node.id+'-'+hit.field.tag){<tr><td>{{text(hit.node.kind,hit.node.label)}}</td><td><button type="button" class="metadata-search-link" (click)="openSearchResult(hit.node.id)">{{hit.node.title || text(hit.node.kind,hit.node.label)}}</button></td><td>{{text(hit.field.tag,hit.field.label)}}</td><td>{{hit.value}}</td></tr>}@empty{<tr><td colspan="4">{{text('searchNoResults')}}</td></tr>}
+              </tbody></table></div>
+            }@else{<p>{{text('searchHelp')}}</p>}
+          }
+        </div>
+      </section>
+    </div>
+    <details class="unfinished-tools"><summary>{{text('remainingTools')}}</summary><p>{{text('remainingHelp')}}</p></details>
+    @if(canEdit()){<div class="checkpoint" [hidden]="!versionsOpen()"><label for="metadata-checkpoint">{{text('checkpointName')}}</label><input id="metadata-checkpoint" [(ngModel)]="checkpointName" maxlength="200" [disabled]="busy()"><button (click)="checkpoint()" [disabled]="busy() || pendingCount()>0 || !checkpointName.trim() || !reason.trim()"><img src="/package-turbo/save.svg" alt="">{{text('checkpoint')}}</button></div>}
+    <section #frozenTools class="prepared-versions" [hidden]="!versionsOpen()" aria-label="Frozen prepared versions"><button class="close-versions" (click)="versionsOpen.set(false)" [attr.aria-label]="text('closeVersions')"><img src="/package-turbo/x.svg" alt=""></button><h3>{{text('frozenVersions')}}</h3><p class="help">{{text('freezeHelp')}}</p>
+      @if(canEdit()){<button (click)="freeze()" [disabled]="busy() || pendingCount()>0 || !doc.state.head || !reason.trim() || !!frozenCurrent()"><img src="/package-turbo/save.svg" alt="">{{text('freeze')}}</button>@if(!doc.state.head){<p class="help">{{text('freezeNeedsHead')}}</p>}}
+      @for(record of doc.prepared_inputs.slice().reverse();track record.id){
+        <article class="prepared-version" (contextmenu)="preparedContext($event,record)" [attr.data-prepared-id]="record.id"><b>{{record.operation_id===doc.state.head ? text('frozenCurrent') : text('frozenHistorical')}}</b><small>{{record.created | date:'medium'}} · {{record.actor}}</small><p>{{record.reason}}</p><p class="mono">SHA-256 · {{record.sha256}}</p>
+          <p class="help">{{text('frozenGate')}}</p><p>KOST: {{kostStatuses()[record.id] || text('kostNotRun')}}</p>
+          <div class="editor-actions"><button class="secondary" (click)="downloadPrepared(record,'zip')"><img src="/package-turbo/download.svg" alt="">{{text('downloadPrepared')}}</button><button class="secondary" (click)="downloadPrepared(record,'evidence')"><img src="/package-turbo/download.svg" alt="">{{text('evidence')}}</button>
+            <button class="secondary" (click)="openKostValidation(record.id)"><img src="/package-turbo/shield-check.svg" alt="">{{text('kostValidation')}}</button>
+          </div>
+        </article>
+      }
+    </section>
+    <footer class="workspace-status"><span>{{text('working')}} · eCH {{doc.profile}} · {{text('pending')}}: {{pendingCount()}}</span><label>{{text('context')}}<input id="metadata-context" [(ngModel)]="reason" [disabled]="busy() || !canEdit()" maxlength="2000"></label><span>{{text('acceptanceClosed')}}</span></footer>
+    <dialog #saveReasonDialog class="save-reason-dialog" aria-labelledby="save-reason-title" aria-describedby="save-reason-help">
+      <form (ngSubmit)="continueWithReason()">
+        <h3 id="save-reason-title">{{text(saveReasonTitle())}}</h3><p id="save-reason-help">{{text('saveReasonHelp')}}</p>
+        <label for="save-reason-input">{{text('context')}}</label><input id="save-reason-input" name="saveReason" [(ngModel)]="reason" maxlength="2000" required>
+        <div class="editor-actions"><button type="submit" [disabled]="busy() || !canEdit() || !reason.trim()"><img src="/package-turbo/save.svg" alt="">{{text('saveChanges')}}</button><button type="button" (click)="saveReasonDialog.close()">{{text('cancelSave')}}</button></div>
+      </form>
+    </dialog>
+    <dialog #noteDialog class="note-edit-dialog" aria-labelledby="note-edit-title" (cancel)="closeNoteDialog($event)"><h3 id="note-edit-title">{{text('editNote')}}</h3>
+      @if(noteDraft();as draft){@if(draft.before){<form (ngSubmit)="saveNote()"><p>{{text('noteTarget')}}: {{objectTitle(draft.node_id)}}</p><label>{{text('noteText')}}<textarea rows="4" name="editedNote" [ngModel]="draft.text" (ngModelChange)="updateNote('text',$event)" [disabled]="busy()" maxlength="8000" required></textarea></label><label>{{text('notePurpose')}}<select name="notePurpose" [ngModel]="draft.purpose" (ngModelChange)="updateNote('purpose',$event)" [disabled]="busy()"><option value="internal">{{text('internal')}}</option><option value="description-candidate">{{text('description-candidate')}}</option></select></label><small>{{text('notesAuthor')}}: {{actorLabel(draft.before.created_by)}} · {{draft.before.created | date:'medium'}}</small><small>{{text('historyActor')}}: {{actorLabel(draft.before.updated_by)}} · {{draft.before.updated | date:'medium'}} · {{text('noteRevision')}} {{draft.before.revision}}</small><p class="mono">{{draft.before.id}} · {{draft.before.created_by}} · {{draft.before.updated_by}}</p>@if(error()){<p role="alert" class="error">{{error()}}</p>}<div class="editor-actions"><button type="submit" [disabled]="!canSaveNote()"><img src="/package-turbo/save.svg" alt="">{{text('saveNote')}}</button><button type="button" (click)="closeNoteDialog()" [disabled]="busy()">{{text('cancelSave')}}</button></div></form>}}
+    </dialog>
+    <dialog #historyDialog class="history-event-dialog" aria-labelledby="history-event-title">
+      <div class="history-dialog-heading"><h3 id="history-event-title">{{text('historyDetails')}}</h3><button class="close-history" (click)="historyDialog.close()">{{text('closeHistory')}}</button></div>
+      @if(historyOperation();as operation){<b>{{historyLabel(operation)}}</b><small>{{operation.created | date:'medium'}} · {{actorLabel(operation.actor)}}</small><p class="mono">{{text('historyActor')}}: {{operation.actor}}</p><p>{{operation.reason}}</p><p class="mono">{{operation.id}}</p><p class="mono">{{text('historyChecksum')}} (METS/PREMIS): {{operation.evidence_sha256}}</p>
+        @if(operation.changes.before || operation.changes.after){<dl><dt>{{text('before')}}</dt><dd>{{describe(operation.changes.before)}}</dd><dt>{{text('after')}}</dt><dd>{{describe(operation.changes.after)}}</dd></dl>}
+        @if(operation.kind==='structure-create'){<p>{{text(operation.changes.child_kind || '')}}</p><ul>@for(object of operation.changes.objects;track object.id){<li><button class="secondary" (click)="historyDialog.close();select(object.id)">{{object.title}}</button> · {{object.source_id}}</li>}</ul>}
+        @if(operation.changes.note_id){<dl><dt>{{text('before')}}</dt><dd>{{operation.changes.note_before?.text || text('empty')}} · {{operation.changes.note_before ? text(operation.changes.note_before!.purpose) : ''}}</dd><dt>{{text('after')}}</dt><dd>{{operation.changes.note_after?.text || text('empty')}} · {{operation.changes.note_after ? text(operation.changes.note_after!.purpose) : ''}}</dd></dl>}
+        @if(operation.changes.before_order){<dl><dt>{{text('before')}}</dt><dd>{{orderText(operation.changes.objects,operation.changes.before_order)}}</dd><dt>{{text('after')}}</dt><dd>{{orderText(operation.changes.objects,operation.changes.after_order)}}</dd></dl>}
+        <div class="editor-actions"><button class="secondary" (click)="historyDialog.close();compare(operation)">{{text('compare')}}</button><button class="secondary" (click)="download(operation,'evidence')"><img src="/package-turbo/download.svg" alt="">{{text('evidence')}}</button><button class="secondary" (click)="download(operation,'metadata')">{{text('metadata')}}</button>@if(canEdit()){<button class="secondary" (click)="historyDialog.close();action('restore',operation.id)" [disabled]="busy() || !reason.trim() || operation.id===doc.state.head">{{text('restore')}}</button>}</div>
+      }
+    </dialog>
+  }
+  <archive-context-menu [state]="contextMenu()" (closed)="contextMenu.set(null)"/>
+</section>
+
+<ng-template #objectButton let-node let-columns="columns" let-source="source"><div class="tree-row" [attr.data-navigation-key]="node.navigation_key" [class.with-columns]="columns" [class.selected]="node.id===selected()" (contextmenu)="nodeContext($event,node)"><div class="tree-name" [style.padding-inline-start.px]="4+navigatorDepth(node)*20">@if(hasChildren(node)){<button class="disclosure secondary" [attr.aria-label]="text('toggleBranch')+': '+node.title" [attr.aria-expanded]="!collapsed().has(node.navigation_key)" (click)="toggleNode(node.navigation_key)">{{collapsed().has(node.navigation_key) ? '▸' : '▾'}}</button>}@else{<span class="disclosure"></span>}<button class="metadata-object" [attr.data-object-id]="node.id" [class.active]="node.id===selected()" [class.ancestor]="parents().get(selected())?.includes(node.id)" [attr.aria-current]="node.id===selected() ? 'true' : null" aria-haspopup="menu" (keydown)="nodeContextKey($event,node)" (click)="select(node.id,source,node.navigation_key)"><span class="node-badge" [attr.data-kind]="node.kind" aria-hidden="true">{{badge(node.kind)}}</span><span class="node-label">{{navigatorTitle(node)}}</span></button><button class="context-trigger" (click)="nodeContext($event,node)" [attr.aria-label]="node.title+': '+text('menu')" aria-haspopup="menu"><img src="/package-turbo/ellipsis-vertical.svg" alt=""></button></div>@if(columns){<span>{{fieldText(node,'aktenzeichen')}}</span><span>{{timespan(node)}}</span><span>{{fieldText(node,'erscheinungsform')}}</span>}</div></ng-template>

@@ -1,0 +1,9 @@
+{
+  "approved": false,
+  "archive_id": null,
+  "profile_id": "urn:ch-archive:aip-profile:3.0.0",
+  "profile_sha256": null,
+  "approved_by": null,
+  "approval_reference": null,
+  "note": "Proposed profile only. Record institutional approval through archive change control, not an operator checkbox."
+}

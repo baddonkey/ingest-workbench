@@ -1,0 +1,167 @@
+{
+  "realm": "ingest-workbench",
+  "displayName": "Ingest Workbench",
+  "displayNameHtml": "Ingest Workbench",
+  "enabled": true,
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "sslRequired": "external",
+  "accessTokenLifespan": 300,
+  "roles": {
+    "realm": [
+      {
+        "name": "archive-reader"
+      },
+      {
+        "name": "archive-operator"
+      },
+      {
+        "name": "archive-approver"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "archive-workbench",
+      "name": "Archive workbench local development",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:4200/",
+        "http://localhost:4200/*",
+        "http://127.0.0.1:4200/",
+        "http://127.0.0.1:4200/*"
+      ],
+      "webOrigins": [
+        "http://localhost:4200",
+        "http://127.0.0.1:4200"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:4200/"
+      },
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "basic"
+      ],
+      "protocolMappers": [
+        {
+          "name": "api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "archive-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "archive-scope",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "archive_id",
+            "claim.name": "archive_id",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "multivalued": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "operator",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Operator",
+      "lastName": "Local",
+      "email": "operator@example.invalid",
+      "attributes": {
+        "archive_id": [
+          "archive-demo"
+        ]
+      },
+      "realmRoles": [
+        "archive-reader",
+        "archive-operator"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "operator-local-only",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "reviewer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Reviewer",
+      "lastName": "Local",
+      "email": "reviewer@example.invalid",
+      "attributes": {
+        "archive_id": [
+          "archive-demo"
+        ]
+      },
+      "realmRoles": [
+        "archive-reader",
+        "archive-approver"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "reviewer-local-only",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "auditor",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Auditor",
+      "lastName": "Local",
+      "email": "auditor@example.invalid",
+      "attributes": {
+        "archive_id": [
+          "archive-demo"
+        ]
+      },
+      "realmRoles": [
+        "archive-reader"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "auditor-local-only",
+          "temporary": false
+        }
+      ]
+    }
+  ],
+  "components": {
+    "org.keycloak.userprofile.UserProfileProvider": [
+      {
+        "name": "declarative-user-profile",
+        "providerId": "declarative-user-profile",
+        "config": {
+          "kc.user.profile.config": [
+            "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"firstName\",\"displayName\":\"${firstName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"lastName\",\"displayName\":\"${lastName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"archive_id\",\"displayName\":\"Archive scope\",\"validations\":{\"length\":{\"min\":1,\"max\":200}},\"permissions\":{\"view\":[\"admin\"],\"edit\":[\"admin\"]},\"multivalued\":false}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User metadata\",\"displayDescription\":\"Attributes, which refer to user metadata\"}]}"
+          ]
+        }
+      }
+    ]
+  }
+}

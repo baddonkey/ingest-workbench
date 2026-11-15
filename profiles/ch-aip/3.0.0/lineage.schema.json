@@ -1,0 +1,210 @@
+{
+  "$defs": {
+    "Input": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "title": "Input",
+      "type": "object"
+    },
+    "ObjectRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "sip_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Sip Id",
+          "type": "string"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_path": {
+          "title": "Source Path",
+          "type": "string"
+        },
+        "target_path": {
+          "title": "Target Path",
+          "type": "string"
+        },
+        "object_id": {
+          "title": "Object Id",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size": {
+          "minimum": 0,
+          "title": "Size",
+          "type": "integer"
+        },
+        "original_algorithm": {
+          "enum": [
+            "MD5",
+            "SHA-1",
+            "SHA-256",
+            "SHA-512"
+          ],
+          "title": "Original Algorithm",
+          "type": "string"
+        },
+        "original_digest": {
+          "title": "Original Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sip_id",
+        "source_id",
+        "source_path",
+        "target_path",
+        "object_id",
+        "sha256",
+        "size",
+        "original_algorithm",
+        "original_digest"
+      ],
+      "title": "ObjectRecord",
+      "type": "object"
+    },
+    "Plan": {
+      "additionalProperties": false,
+      "properties": {
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/Target"
+          },
+          "minItems": 1,
+          "title": "Targets",
+          "type": "array"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "author": {
+          "title": "Author",
+          "type": "string"
+        },
+        "created": {
+          "title": "Created",
+          "type": "string"
+        },
+        "inputs": {
+          "items": {
+            "$ref": "#/$defs/Input"
+          },
+          "minItems": 1,
+          "title": "Inputs",
+          "type": "array"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "targets",
+        "reason",
+        "author",
+        "created",
+        "inputs",
+        "sha256"
+      ],
+      "title": "Plan",
+      "type": "object"
+    },
+    "Target": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "units": {
+          "items": {
+            "$ref": "#/$defs/UnitRef"
+          },
+          "minItems": 1,
+          "title": "Units",
+          "type": "array"
+        },
+        "aip_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Aip Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "units",
+        "aip_id"
+      ],
+      "title": "Target",
+      "type": "object"
+    },
+    "UnitRef": {
+      "additionalProperties": false,
+      "properties": {
+        "sip_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Sip Id",
+          "type": "string"
+        },
+        "unit_id": {
+          "title": "Unit Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sip_id",
+        "unit_id"
+      ],
+      "title": "UnitRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "aip_id": {
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "title": "Aip Id",
+      "type": "string"
+    },
+    "plan": {
+      "$ref": "#/$defs/Plan"
+    },
+    "files": {
+      "items": {
+        "$ref": "#/$defs/ObjectRecord"
+      },
+      "title": "Files",
+      "type": "array"
+    }
+  },
+  "required": [
+    "aip_id",
+    "plan",
+    "files"
+  ],
+  "title": "Lineage",
+  "type": "object"
+}

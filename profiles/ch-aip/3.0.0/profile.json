@@ -1,0 +1,16 @@
+{
+  "id": "urn:ch-archive:aip-profile:3.0.0",
+  "version": "3.0.0",
+  "status": "proposed institutional profile; not a registered METS profile",
+  "metadata": {"mets": "1.12.1", "premis": "3.0", "description": "source-projected archival hierarchy JSON/1.0"},
+  "serialization": "ZIP transport with complete SHA-256 manifest; sealed bytes are immutable",
+  "input_profiles": ["1.0", "1.1", "1.2.0", "1.3.0"],
+  "required_files": ["aip.json", "metadata/description.json", "metadata/lineage.json", "metadata/preservation-context.json", "metadata/representation.json", "metadata/mets.xml", "metadata/premis.xml", "evidence/events.json", "manifest-sha256.txt"],
+  "identity": "Stable logical AIP UUID, monotonic immutable package version, version UUID and predecessor package SHA-256",
+  "logical_units": "Top-level dossiers with all nested dossiers, maps, documents, ordered file references and ancestor context",
+  "rights": "Unassessed by default; source-scoped documented grants and explicit review of source restrictions are required for readiness",
+  "representation_information": "Per-object format registry assertions, significant properties and embedded documentation resources; unknown remains blocking",
+  "checksums": "SHA-256 manifest covers every member except itself; METS fileSec covers every member except METS and the manifest; outer package digest is external",
+  "evidence": "Original SIPs remain in the evidence vault; byte-exact source metadata and linked validation evidence are retained",
+  "acceptance": "Structural validity, preservation readiness, institutional profile approval and archival acceptance are separate gates"
+}

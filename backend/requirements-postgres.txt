@@ -1,0 +1,4 @@
+# Optional persistence foundation; existing application dependencies stay pinned.
+SQLAlchemy==2.0.57
+alembic==1.20.1
+psycopg[binary]==3.3.9

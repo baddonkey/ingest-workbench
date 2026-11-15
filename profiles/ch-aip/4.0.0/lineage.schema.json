@@ -1,0 +1,340 @@
+{
+  "$defs": {
+    "Input": {
+      "additionalProperties": false,
+      "properties": {
+        "sip_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Sip Id",
+          "type": "string"
+        },
+        "prepared_id": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Prepared Id"
+        },
+        "source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        },
+        "input_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Input Sha256",
+          "type": "string"
+        },
+        "profile": {
+          "enum": [
+            "1.0",
+            "1.1",
+            "1.2.0",
+            "1.3.0"
+          ],
+          "title": "Profile",
+          "type": "string"
+        },
+        "schema_bundle_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Schema Bundle Sha256",
+          "type": "string"
+        },
+        "size": {
+          "title": "Size",
+          "type": "integer"
+        },
+        "preparation_authors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Preparation Authors",
+          "type": "array"
+        },
+        "receipt_checks": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Receipt Checks",
+          "type": "array"
+        },
+        "operation_id": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Operation Id"
+        },
+        "metadata_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata Sha256"
+        },
+        "preparation_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Preparation Sha256"
+        },
+        "freeze_evidence_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Freeze Evidence Sha256"
+        }
+      },
+      "required": [
+        "sip_id",
+        "prepared_id",
+        "source_sha256",
+        "input_sha256",
+        "profile",
+        "schema_bundle_sha256",
+        "size",
+        "preparation_authors",
+        "receipt_checks"
+      ],
+      "title": "Input",
+      "type": "object"
+    },
+    "ObjectRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "sip_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Sip Id",
+          "type": "string"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_path": {
+          "title": "Source Path",
+          "type": "string"
+        },
+        "target_path": {
+          "title": "Target Path",
+          "type": "string"
+        },
+        "object_id": {
+          "title": "Object Id",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size": {
+          "minimum": 0,
+          "title": "Size",
+          "type": "integer"
+        },
+        "original_algorithm": {
+          "enum": [
+            "MD5",
+            "SHA-1",
+            "SHA-256",
+            "SHA-512"
+          ],
+          "title": "Original Algorithm",
+          "type": "string"
+        },
+        "original_digest": {
+          "title": "Original Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sip_id",
+        "source_id",
+        "source_path",
+        "target_path",
+        "object_id",
+        "sha256",
+        "size",
+        "original_algorithm",
+        "original_digest"
+      ],
+      "title": "ObjectRecord",
+      "type": "object"
+    },
+    "Plan": {
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "const": 2,
+          "title": "Format",
+          "type": "integer"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "transfer_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Transfer Id",
+          "type": "string"
+        },
+        "tenant": {
+          "title": "Tenant",
+          "type": "string"
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/Target"
+          },
+          "title": "Targets",
+          "type": "array"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "author": {
+          "title": "Author",
+          "type": "string"
+        },
+        "created": {
+          "title": "Created",
+          "type": "string"
+        },
+        "inputs": {
+          "items": {
+            "$ref": "#/$defs/Input"
+          },
+          "title": "Inputs",
+          "type": "array"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "format",
+        "id",
+        "transfer_id",
+        "tenant",
+        "targets",
+        "reason",
+        "author",
+        "created",
+        "inputs",
+        "sha256"
+      ],
+      "title": "Plan",
+      "type": "object"
+    },
+    "Target": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "units": {
+          "items": {
+            "$ref": "#/$defs/UnitRef"
+          },
+          "minItems": 1,
+          "title": "Units",
+          "type": "array"
+        },
+        "aip_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Aip Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "units",
+        "aip_id"
+      ],
+      "title": "Target",
+      "type": "object"
+    },
+    "UnitRef": {
+      "additionalProperties": false,
+      "properties": {
+        "sip_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Sip Id",
+          "type": "string"
+        },
+        "unit_id": {
+          "title": "Unit Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sip_id",
+        "unit_id"
+      ],
+      "title": "UnitRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "aip_id": {
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "title": "Aip Id",
+      "type": "string"
+    },
+    "plan": {
+      "$ref": "#/$defs/Plan"
+    },
+    "files": {
+      "items": {
+        "$ref": "#/$defs/ObjectRecord"
+      },
+      "title": "Files",
+      "type": "array"
+    }
+  },
+  "required": [
+    "aip_id",
+    "plan",
+    "files"
+  ],
+  "title": "PreparedLineage",
+  "type": "object"
+}

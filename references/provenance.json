@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "ech0160_schema_bundles": [
+    {"profile":"1.0","file":"schemas/ech-0160/source-bundles/schema-1.0.zip","source_url":"https://ech.ch/sites/default/files/imce/eCH-Dossier/0151-0180/eCH-0160/1.0/Beilagen/eCH-0160.xsd.zip","retrieved_on":"2026-11-12","sha256":"9c749abfad1d70235b9c9d37195b6ca0c816d314ea7dcc88d9fd63b8a0e36bfb","notes":"Corrected German bundle; deprecated and English variants are not acceptance profiles."},
+    {"profile":"1.1","file":"schemas/ech-0160/source-bundles/schema-1.1.zip","source_url":"https://ech.ch/sites/default/files/imce/eCH-Dossier/0151-0180/eCH-0160/1.1/Beilagen/eCH-0160-1.1.xsd.zip","retrieved_on":"2026-11-12","sha256":"9ca44ef6376ade92f7ad5a6e88f5efab11acef88747336671cf28c1f71b1cd71"},
+    {"profile":"1.2.0","file":"schemas/ech-0160/source-bundles/schema-1.2.zip","source_url":"https://ech.ch/sites/default/files/imce/eCH-Dossier/0151-0180/eCH-0160/1.2.0/Beilagen/eCH-0160-1.2.0.xsd.zip","retrieved_on":"2026-11-12","sha256":"f2a492066f656cb3bf109bbaba5a0fd85b9bdff3b4b76079c369b00f70ab3eca"},
+    {"profile":"1.3.0","file":"schemas/ech-0160/source-bundles/schema-1.3.zip","source_url":"https://ech.ch/sites/default/files/imce/eCH-Dossier/0151-0180/eCH-0160/1.3.0/Beilagen/eCH-0160-1.3.0.xsd.zip","retrieved_on":"2026-11-12","sha256":"0231822f081cb61f125c6f3fe6968f331d6f6618ee5c7a19a933a8f1173bdff9"}
+  ],
+  "ech0160_reference_samples": [
+    {"file":"fixtures/corpus/SIP_20070923_eCH1.0G_RIS.zip","profile":"1.0","kind":"official_reference_sip","source_url":"https://kost-ceco.ch/cms/dl/38d35e2c77c9899e31921fce35b6fcc1/SIP_20070923_eCH1.0G_RIS.zip?target=1","sha256":"f9e8bf06762e801e8900ec0642c03ea537a931dd7583701160bbe3745520cd1c"},
+    {"file":"fixtures/corpus/SIP_20100222_eCH1.0Fdoc_BFFeuerwehr.zip","profile":"1.0","kind":"official_reference_sip","source_url":"https://kost-ceco.ch/cms/dl/590bed8975de1020a95546244bb3c283/SIP_20100222_eCH1.0Fdoc_BFFeuerwehr.zip?target=1","sha256":"586307f296ce9aa5e70a7e59c096eb2dab033c1b9a571d98c0053b3e86f222f1"},
+    {"file":"fixtures/corpus/SIP_20120628_eCH1.0F_BfB.zip","profile":"1.0","kind":"official_reference_sip","source_url":"https://kost-ceco.ch/cms/dl/c8c7d85bf0527f4a56a33ae3688fbd39/SIP_20120628_eCH1.0F_BfB.zip?target=1","sha256":"c1acda96083c79437de41334b00928a28595d744c2f397b3b44a6d12d397d97c"},
+    {"file":"fixtures/corpus/SIP_20070923_eCH1.1G_RIS_vorgang.zip","profile":"1.1","kind":"official_reference_sip","source_url":"https://kost-ceco.ch/cms/dl/33a3c30d47738b6e96282f59592024a7/SIP_20070923_eCH1.1G_RIS_vorgang.zip?target=1","sha256":"f9f4f9135f27ed87503a8f060e98bf3cd2b87668448356d255d2eae942f342aa"},
+    {"file":"fixtures/corpus/SIP_20220328_KOST_eCH1.2F_1a-3d-IO.zip","profile":"1.2.0","kind":"official_reference_sip","source_url":"https://kost-ceco.ch/cms/dl/ce2a486d306cda70b271bae6ab10129d/SIP_20220328_KOST_eCH1.2F_1a-3d-IO.zip?target=1","sha256":"e81d1105896cc00b730f89d2c8fe357abcf59b7875bdf502147958115ee531cd"},
+    {"file":"fixtures/corpus/SIP_20220328_KOST_eCH1.2G_1a-3d-IO.zip","profile":"1.2.0","kind":"official_reference_sip","source_url":"https://kost-ceco.ch/cms/dl/7bb269c27e52cb6cfd988a38d481129c/SIP_20220328_KOST_eCH1.2G_1a-3d-IO.zip?target=1","sha256":"955fa6685592d41f54c22529b627d21a905f01a3b4e424f0cb1c09eb862d52cf"},
+    {"file":"fixtures/corpus/SIP_20260421_KOST_eCH1.3F_1a-3d-IO.zip","profile":"1.3.0","kind":"official_reference_sip","source_url":"https://kost-ceco.ch/cms/dl/4e987f3ea41c4da065b191e39c34cf8c/SIP_20260421_KOST_eCH1.3F_1a-3d-IO.zip?target=1","sha256":"dc4474a3cfe654f7e459cd594cd43d91f7e563b98c39e809417e6778ba023c65"},
+    {"file":"fixtures/reference-1.3.zip","profile":"1.3.0","kind":"official_reference_sip","original_filename":"SIP_20240430_KOST_eCH1.3F_1a-3d-IO.zip","source_url":"https://ech.ch/sites/default/files/imce/eCH-Dossier/0151-0180/eCH-0160/1.3.0/Beilagen/SIP_20240430_KOST_eCH1.3F_1a-3d-IO.zip","retrieved_on":"2026-11-12","sha256":"7b26d0239706695142defa9b9b4e71ec31d3ea158ebc7ba87bb07ca462a15359"}
+  ],
+  "preservation_schema_sources": [
+    {"file":"mets.xsd","source_url":"https://raw.githubusercontent.com/mets/METS-schema/main/version1121/mets.xsd","retrieved_on":"2026-11-12","sha256":"8f289c776e490e4763dab0e4b958c74993e5f271718cf244f24d00bb5af62a1f"},
+    {"file":"premis.xsd","source_url":"https://www.loc.gov/standards/premis/v3/premis-v3-0.xsd","retrieved_on":"2026-11-12","sha256":"03b8a77a20b32b882ad799e12262671d07ad18210c60233f4e613a1289491cba"},
+    {"file":"xlink.xsd","source_url":"https://www.loc.gov/standards/mets/xlink.xsd","retrieved_on":"2026-11-12","sha256":"f1f5bb6003165cdd8f6c1fcc32f8fd1f965e1681010f3b9806d9460bcffa8a3c"},
+    {"file":"xml.xsd","source_url":"https://www.w3.org/2001/xml.xsd","retrieved_on":"2026-11-12","sha256":"61960fb3131e38022caad5360e2f33a3382578ab3c80cd58bd74320ede61b20c"}
+  ],
+  "package_turbo_source": {
+    "repository":"https://github.com/baddonkey/package-turbo-web","commit":"4aec0aec9a42715caab6eeaecac944ef2c116e88","reviewed_on":"2026-11-13","purpose":"User-authorized read-only source review; no upstream runtime imported.","license":"MIT; copyright (c) 2026 Package Turbo contributors",
+    "files":[
+      {"path":"readme.md","sha256":"52e5727558994cb4127d8067aed0bfa1154b30286fbd93e891191397e3a2f854"},
+      {"path":"LICENSE","sha256":"762be05fa3e2e834c5bfaad6af69092efe258e66d1edce202a04eec70957c72f"},
+      {"path":"docs/web-workspace.md","sha256":"07c0c97bb16a683586b33bd5c87072267a03f0b6d73df5ed837e56c765732fd2"},
+      {"path":"web/src/app/navigator-tree.ts","sha256":"5c6e7ba7b27a04613ad3ddc40d790c3bc6246585ad95a745176a6b5f76bc07c7"},
+      {"path":"web/src/app/app.html","sha256":"af96907016f6ad610caf1dabf205a033a0abe011abc3ff5183cfed3a806b28c4"},
+      {"path":"web/src/app/app.ts","sha256":"3218d6af44d7632501b48bec963a1224007dec4050b14bf91ae4474f9b6d23dc"},
+      {"path":"web/src/app/metadata-field.ts","sha256":"80372b484fa26a2a8f74f5ff5d0c6ba0ac94cbf77c77af85588e7ab3d1d80c95"},
+      {"path":"ph_web/metadata.py","sha256":"a207c4b0e725f13846098c3babbf6c8159e78c0ca78319987b7c51baacf19bc2"},
+      {"path":"ph_web/models.py","sha256":"0948a993f40611a89a697012fddd9119ec2881def70baf9ce5f1191752ce3324"},
+      {"path":"web/src/app/app.css","sha256":"80d22b94e6e847db426f4c44619031270b229545dd6748d8edf0428b07f85471"},
+      {"path":"web/src/app/metadata-field.css","sha256":"8433a4c14f55f8f77788d8681dc5bd92d71c6e0e19f7ffc09719007ea655efd0"}
+    ]
+  },
+  "package_turbo_imports": {
+    "purpose":"User-approved schema forms, embedded layout/context-menu adaptation and exact SVG reuse.",
+    "files":[
+      {"path":"ph_backend/xsd_info.py","sha256":"2770f1bf1f1a31e8e54d72c5f03f7317f45bae76d62282410eda97de2b6e1d15"},
+      {"path":"ph_backend/schema.py","sha256":"717acca495f8d8fa17617b61ebf3933cbb78a4ef9482d6c29e1e3474a8e268d7"},
+      {"path":"THIRD_PARTY_LICENSES.md","sha256":"4ea2a8499baa0fd78583086e893ef7d8551568ed733a04c371df09f7c965a945"},
+      {"path":"web/public/clock.svg","sha256":"e90d3294b13703b0db498272f8198c97aaa54aa73c02c2fe1d7bdf368992c863"},
+      {"path":"web/public/copy.svg","sha256":"f3a752d8c4ad07a69ead10b0856395a5d37eae38896b86b97e4b9fe2cb4f9495"},
+      {"path":"web/public/download.svg","sha256":"26846e3b57896ef57fa07eaf4c225e60cc7e8fcef3fc017fc1ecf0fef3c52e5d"},
+      {"path":"web/public/ellipsis-vertical.svg","sha256":"718ed65aafb740d609d03cdc8822fd2ee865851e57b1134296fdbbefdc1039d2"},
+      {"path":"web/public/file-plus.svg","sha256":"3341a5268198e2718e99c71dc6fedceb5f2cdecfd210e5a2b043f8010b1e578f"},
+      {"path":"web/public/file-text.svg","sha256":"b0e47486380ffca86daba9d7ddb6d4113e21a0c42930e140cedd6a703515dc02"},
+      {"path":"web/public/folder-open.svg","sha256":"5bf197d963fcc382548e42564462ade47cdc0979257edd2ca2fc654621b0aecf"},
+      {"path":"web/public/save.svg","sha256":"929d465e19c9dcebb4b3510693c678513246162c2079819bd90c18c1bf8d99f6"},
+      {"path":"web/public/scan-search.svg","sha256":"4026bd4e9ddeda188becfbcd1fc7e0bb0a54391dc6fdfb12a0f2858b6621e3f2"},
+      {"path":"web/public/search.svg","sha256":"f1d736cf57b12b7784ac894db511028c451e0ce5bc40420e77ba995829cd3900"},
+      {"path":"web/public/shield-check.svg","sha256":"13ac5937ed59c16b521028656b55ecf680c2a1a4ab9de4729975144957d8906a"},
+      {"path":"web/public/sticky-note.svg","sha256":"b0325070d40bdaeb75443ff138122fa4e4f82a27020459e2797e4615e9d022ff"},
+      {"path":"web/public/x.svg","sha256":"5b4165ae1f49b53694ba06340e7580d81dedadd1e17b286e3a0147cf957b97f3"},
+      {"path":"web/src/app/app.html","sha256":"af96907016f6ad610caf1dabf205a033a0abe011abc3ff5183cfed3a806b28c4"},
+      {"path":"web/src/app/app.css","sha256":"80d22b94e6e847db426f4c44619031270b229545dd6748d8edf0428b07f85471"},
+      {"path":"web/src/app/metadata-field.css","sha256":"8433a4c14f55f8f77788d8681dc5bd92d71c6e0e19f7ffc09719007ea655efd0"},
+      {"path":"web/src/app/context-menu.ts","sha256":"3f043df79ebeb079e1a1d34807de3171a9e6957bd058dc23d9c334194d110e6c"},
+      {"path":"web/src/app/navigator-tree.ts","sha256":"5c6e7ba7b27a04613ad3ddc40d790c3bc6246585ad95a745176a6b5f76bc07c7"},
+      {"path":"web/src/app/navigator-tree.css","sha256":"3fbc5e6ca1c9ae245998e7cc40d688384d334dd633fd7f5da9c29910864bdab"},
+      {"path":"web/src/styles.css","sha256":"6a921050eb369162157e4902381304d0b22cfadd08abd01333e5f6c0e6c6bb87"},
+      {"path":"web/public/package-turbo.svg","sha256":"8246deebe192d79273fed5eba7b9dab139f5cebc04b667ed89ed75e68421904f"},
+      {"path":"web/src/app/app.ts","sha256":"3218d6af44d7632501b48bec963a1224007dec4050b14bf91ae4474f9b6d23dc"}
+    ],
+    "icon_license_notice":"licenses/lucide-LICENSE.txt",
+    "icon_license_sha256":"b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57"
+  }
+}

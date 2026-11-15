@@ -1,0 +1,17 @@
+FROM docker.io/library/python:3.12-slim
+WORKDIR /application
+COPY backend/requirements*.txt ./
+RUN pip install --no-cache-dir -r requirements.txt && useradd -u 10001 -m archive
+COPY backend/app app
+COPY backend/licenses licenses
+COPY backend/migrations migrations
+COPY backend/alembic.ini alembic.ini
+COPY scripts/recover_application.py scripts/recover_application.py
+COPY schemas schemas
+COPY profiles profiles
+COPY config/aip-policy.json aip-policy.json
+RUN mkdir /data && chown archive:archive /data
+USER archive
+ENV DATA_DIR=/data SCHEMA_DIR=/application/schemas AIP_POLICY_FILE=/application/aip-policy.json
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

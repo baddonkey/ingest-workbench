@@ -1,0 +1,75 @@
+# Local application state, submissions, sealed outputs, checkouts and backups.
+/var/
+
+# Python environments, bytecode, test/analysis caches and coverage.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+
+# Frontend dependencies, builds and browser-test output.
+node_modules/
+dist/
+.angular/
+*.tsbuildinfo
+/frontend/test-results/
+/frontend/playwright-report/
+/frontend/blob-report/
+
+# Local credentials/configuration; retain the deliberately dummy examples.
+.env
+.env.*
+!.env.example
+*.local.json
+/worker/config.json
+/secrets/
+.secrets/
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+
+# Reference SIPs downloaded separately; see docs/specification.md.
+/fixtures/corpus/SIP_20070923_eCH1.0G_RIS.zip
+/fixtures/corpus/SIP_20070923_eCH1.1G_RIS_vorgang.zip
+/fixtures/corpus/SIP_20100222_eCH1.0Fdoc_BFFeuerwehr.zip
+/fixtures/corpus/SIP_20120628_eCH1.0F_BfB.zip
+/fixtures/corpus/SIP_20220328_KOST_eCH1.2F_1a-3d-IO.zip
+/fixtures/corpus/SIP_20220328_KOST_eCH1.2G_1a-3d-IO.zip
+/fixtures/corpus/SIP_20260421_KOST_eCH1.3F_1a-3d-IO.zip
+/fixtures/reference-1.3.zip
+
+# Runtime databases and logs.
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.sqlite3-*
+*.db
+*.db-*
+*.log
+
+# Workstation-generated execution evidence is local, not repository source.
+# Store new output under var/local-evidence/; these rules guard against old paths.
+# See docs/git-hygiene.md for the retained fixture exceptions.
+/docs/*.txt
+/docs/*.png
+/docs/*.json
+!/docs/package-handler-source.json
+!/docs/package-handler-imports.json
+
+# OS/editor temporary state.
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~

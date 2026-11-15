@@ -1,0 +1,244 @@
+{
+  "$defs": {
+    "FormatAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "sip_id": {
+          "title": "Sip Id",
+          "type": "string"
+        },
+        "file_id": {
+          "title": "File Id",
+          "type": "string"
+        },
+        "format_name": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Format Name",
+          "type": "string"
+        },
+        "format_version": {
+          "default": "",
+          "maxLength": 100,
+          "title": "Format Version",
+          "type": "string"
+        },
+        "media_type": {
+          "default": "application/octet-stream",
+          "pattern": "^[a-zA-Z0-9.+-]+/[a-zA-Z0-9.+-]+$",
+          "title": "Media Type",
+          "type": "string"
+        },
+        "registry_name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Registry Name",
+          "type": "string"
+        },
+        "registry_key": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Registry Key",
+          "type": "string"
+        },
+        "resource_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Resource Ids",
+          "type": "array"
+        },
+        "significant_properties": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "maxProperties": 50,
+          "title": "Significant Properties",
+          "type": "object"
+        }
+      },
+      "required": [
+        "sip_id",
+        "file_id",
+        "format_name",
+        "registry_name",
+        "registry_key",
+        "resource_ids"
+      ],
+      "title": "FormatAssessment",
+      "type": "object"
+    },
+    "SourceRights": {
+      "additionalProperties": false,
+      "properties": {
+        "sip_id": {
+          "title": "Sip Id",
+          "type": "string"
+        },
+        "status": {
+          "default": "unassessed",
+          "enum": [
+            "unassessed",
+            "assessed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "basis": {
+          "default": "unassessed",
+          "enum": [
+            "unassessed",
+            "statute",
+            "license",
+            "copyright",
+            "other"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "statement": {
+          "default": "",
+          "maxLength": 8000,
+          "title": "Statement",
+          "type": "string"
+        },
+        "jurisdiction": {
+          "default": "",
+          "maxLength": 200,
+          "title": "Jurisdiction",
+          "type": "string"
+        },
+        "copyright_status": {
+          "default": "",
+          "maxLength": 200,
+          "title": "Copyright Status",
+          "type": "string"
+        },
+        "access": {
+          "default": "unassessed",
+          "enum": [
+            "restricted",
+            "open",
+            "unassessed"
+          ],
+          "title": "Access",
+          "type": "string"
+        },
+        "source_restrictions_reviewed": {
+          "default": false,
+          "title": "Source Restrictions Reviewed",
+          "type": "boolean"
+        },
+        "acts": {
+          "items": {
+            "enum": [
+              "replicate",
+              "migrate",
+              "disseminate"
+            ],
+            "type": "string"
+          },
+          "maxItems": 3,
+          "title": "Acts",
+          "type": "array"
+        },
+        "term": {
+          "default": "unassessed",
+          "enum": [
+            "unassessed",
+            "bounded",
+            "open-ended"
+          ],
+          "title": "Term",
+          "type": "string"
+        },
+        "start_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Date"
+        },
+        "end_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Date"
+        },
+        "resource_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Resource Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "sip_id"
+      ],
+      "title": "SourceRights",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "archive_identifier": {
+      "default": "",
+      "maxLength": 300,
+      "title": "Archive Identifier",
+      "type": "string"
+    },
+    "archive_name": {
+      "default": "",
+      "maxLength": 300,
+      "title": "Archive Name",
+      "type": "string"
+    },
+    "designated_community": {
+      "default": "",
+      "maxLength": 8000,
+      "title": "Designated Community",
+      "type": "string"
+    },
+    "knowledge_base": {
+      "default": "",
+      "maxLength": 8000,
+      "title": "Knowledge Base",
+      "type": "string"
+    },
+    "rights": {
+      "items": {
+        "$ref": "#/$defs/SourceRights"
+      },
+      "maxItems": 1000,
+      "title": "Rights",
+      "type": "array"
+    },
+    "formats": {
+      "items": {
+        "$ref": "#/$defs/FormatAssessment"
+      },
+      "maxItems": 10000,
+      "title": "Formats",
+      "type": "array"
+    }
+  },
+  "title": "PreservationContext",
+  "type": "object"
+}

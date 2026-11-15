@@ -1,0 +1,62 @@
+<section class="kost-validation" aria-label="KOST-Validation">
+  <details #panel [open]="expanded()" (toggle)="expanded.set(panel.open)">
+    <summary><img src="/package-turbo/shield-check.svg" width="16" height="16" alt=""><strong>KOST-Validation</strong><span class="kost-status" role="status" [class.running]="active(viewingRun() || selected()?.latest)" [class.invalid]="(viewingRun() || selected()?.latest)?.result==='invalid'" [class.failed]="(viewingRun() || selected()?.latest)?.result==='error'">{{inventory() ? status(viewingRun() || selected()?.latest) : 'Loading'}}</span><span class="scope">{{selected()?.label}}</span>@if(report()?.validator_error){<span class="engine-error">Validator error present</span>}@if(viewingRun()){<span class="scope">Historical run</span>}<span class="scope">Advisory</span></summary>
+    @if(inventory();as doc){
+      <div class="kost-toolbar">
+        <label>Validated artifact<select [value]="chosen()" (change)="choose($any($event.target).value)" [disabled]="working()">@for(target of doc.targets;track target.target_id){<option [value]="target.target_id">{{target.label}}</option>}</select></label>
+        @if(canRun()){<button type="button" (click)="run()" [disabled]="!doc.enabled || working() || active(selected()?.latest) || !selected()"><img src="/package-turbo/scan-search.svg" width="16" height="16" alt="">{{working() ? 'Queueing' : selected()?.latest ? 'Re-run KOST validation' : 'Run KOST validation'}}</button>}
+        <button type="button" class="icon-button" (click)="refresh()" aria-label="Refresh KOST status" title="Refresh KOST status"><img src="/package-turbo/scan-search.svg" width="16" height="16" alt=""></button>
+      </div>
+      @if(!doc.enabled){<p class="notice">KOST service is not configured.</p>}
+      @if(selected();as target){
+        <p class="digest">{{target.label}} SHA-256: {{target.input_sha256}}</p>
+        @if(target.latest;as run){
+          <div class="run-facts"><span>{{status(run)}}</span><span>Requested {{run.created*1000 | date:'medium'}}</span>@if(run.finished){<span>Result {{run.finished*1000 | date:'medium'}}</span>}</div>
+          @if(run.message){<p>{{run.message}}</p>}
+          @if(run.last_error){<p class="notice">{{run.last_error}} @if(active(run)){Retrying in background.}</p>}
+          @if(run.state==='SUBMISSION_UNKNOWN'){<p class="notice">A remote job may exist. Re-running requires confirmation and may create a duplicate.</p>}
+          @if(!report()?.available){<ul class="kost-findings">@for(finding of run.errors;track $index){<li><strong>{{finding.module}}</strong><span>{{finding.message}}</span></li>}</ul>}
+          @if(run.report_sha256){<button type="button" (click)="download(run)" [disabled]="downloading()"><img src="/package-turbo/download.svg" width="16" height="16" alt="">Download XML report</button>}
+          @else if(run.result){<small>XML report: {{run.report_status}}</small>}
+        }
+      }
+      @if(reportBusy()){<p role="status">Reading retained XML findings</p>}
+      @if(reportError()){<p role="alert" class="notice">{{reportError()}}</p>}
+      @if(report();as result){
+        <section class="structured-results" aria-label="Structured validation results">
+          <div class="run-facts"><strong>KOST reported: {{result.reported_result}}</strong><span>Report run {{result.run_id}}</span>@if(result.checked_at){<span>Checked {{result.checked_at*1000 | date:'medium'}}</span>}@if(viewingRun()){<button type="button" (click)="choose(chosen())">Latest run</button>}</div>
+          @if(!result.available){<p class="notice">{{result.reason}}</p>}
+          @else{
+            @if(result.validator_error){<p class="notice">Validator error present. The reported verdict does not establish that all checks completed reliably.</p>}
+            <div class="report-counts" aria-label="File assessment counts"><span>Valid <b>{{result.file_counts?.valid || 0}}</b></span><span>Invalid <b>{{result.file_counts?.invalid || 0}}</b></span><span>Recognized <b>{{result.file_counts?.recognized || 0}}</b></span><span>Not assessed <b>{{result.file_counts?.not_assessed || 0}}</b></span></div>
+            @if(result.summary){<details><summary>KOST summary</summary><p>{{result.summary}}</p></details>}
+            <div class="report-filters">
+              <label>Outcome<select [value]="outcomeFilter()" (change)="outcomeFilter.set($any($event.target).value);entryLimit.set(100)"><option value="all">All outcomes</option><option value="invalid">Invalid</option><option value="valid">Valid</option><option value="recognized">Recognized</option><option value="not_assessed">Not assessed</option></select></label>
+              <label>Severity<select [value]="severityFilter()" (change)="severityFilter.set($any($event.target).value);entryLimit.set(100)"><option value="all">All severities</option><option value="error">Errors</option><option value="warning">Warnings</option><option value="info">Information</option><option value="validator_error">Validator errors</option></select></label>
+              <label>Find file or finding<input type="search" [value]="search()" (input)="search.set($any($event.target).value);entryLimit.set(100)"></label>
+            </div>
+            <div class="report-table-wrap" tabindex="0" role="region" aria-label="Validation results table">
+              <table class="report-table"><thead><tr><th scope="col">Scope / object</th><th scope="col">Check</th><th scope="col">Outcome</th><th scope="col">Findings</th></tr></thead><tbody>
+                @for(entry of filteredEntries().slice(0,entryLimit());track entry.id){<tr [class.selected]="entry.path && focusedPath()===entry.path">
+                  <td>@if(entry.scope==='package'){<strong>Package</strong>}@else if(entry.path){<button class="file-link" type="button" (click)="openFile(entry)"><img src="/package-turbo/file-text.svg" width="14" height="14" alt="">{{entry.path}}</button>}@else{<span>{{entry.reported_path || 'Unknown file'}}</span><small>Unmapped report path</small>}</td>
+                  <td>{{entry.check}} {{entry.format_version}}</td><td>{{outcome(entry)}}</td>
+                  <td>@if(entry.findings.length){<details><summary>{{entry.findings.length}} findings</summary>@for(finding of entry.findings;track $index){<article [attr.data-severity]="finding.severity"><b>{{finding.severity==='validator_error' ? 'Validator error' : finding.severity}} · {{finding.module}}</b><p>{{finding.message}}</p></article>}</details>}@else{<span>No findings</span>}</td>
+                </tr>}@empty{<tr><td colspan="4">No matching assessments.</td></tr>}
+              </tbody></table>
+            </div>
+            @if(filteredEntries().length>entryLimit()){<button type="button" (click)="entryLimit.set(entryLimit()+100)">More assessments</button>}
+            <archive-kost-file-findings [report]="result" [path]="focusedPath()" [inputSha256]="result.input_sha256" [preparedId]="result.prepared_id"/>
+          }
+        </section>
+      }
+      <details class="kost-history" (toggle)="historyOpen.set(history.open);history.open && loadHistory()" #history>
+        <summary>Previous runs and reports</summary>
+        @for(run of runs();track run.id){<article><div class="run-facts"><strong>{{status(run)}}</strong><span>{{run.created*1000 | date:'medium'}}</span><span>{{run.trigger}} / {{run.actor}}</span></div><small>{{run.id}}</small>@if(run.message){<p>{{run.message}}</p>}@if(run.errors.length){<ul class="kost-findings">@for(finding of run.errors;track $index){<li><strong>{{finding.module}}</strong><span>{{finding.message}}</span></li>}</ul>}@if(run.report_sha256){<button type="button" (click)="inspectRun(run)"><img src="/package-turbo/shield-check.svg" width="16" height="16" alt="">Inspect report findings</button><button type="button" (click)="download(run)" [disabled]="downloading()"><img src="/package-turbo/download.svg" width="16" height="16" alt="">Download XML report</button>}</article>}
+        @if(!historyBusy() && !runs().length){<p>No retained runs.</p>}
+        @if(historyBusy()){<p role="status">Loading run history</p>}
+        @if(next()){<button type="button" (click)="loadHistory(true)" [disabled]="historyBusy()">Older runs</button>}
+      </details>
+    }
+  </details>
+  @if(error()){<p role="alert" class="notice">{{error()}}</p>}
+</section>

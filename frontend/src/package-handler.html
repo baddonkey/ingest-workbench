@@ -1,0 +1,96 @@
+<section class="handler" [class.working-mode]="editing()" aria-label="Ingest Packager workspace">
+  <div class="handler-heading"><div><div class="eyebrow">INGEST PACKAGER</div><h3>Prepare this package</h3></div><span class="badge">{{editing() ? 'Working metadata' : 'Original · read only'}}</span></div>
+  <div class="pane-tabs"><button [class.active]="editing()" (click)="setEditing(true)"><img src="/package-turbo/file-text.svg" width="16" height="16" alt=""> Edit working metadata</button><button [class.active]="!editing()" (click)="setEditing(false)"><img src="/package-turbo/folder-open.svg" width="16" height="16" alt=""> Inspect original</button></div>
+  <div class="handler-toolbar">
+    <label>Submission<select [value]="chosenSip()" (change)="switchSip($event)" [disabled]="busy() || saving() || !sips().length">@for(s of sips();track s.id){<option [value]="s.id">eCH {{s.profile}} · {{s.id.slice(0,8)}}</option>}</select></label>
+    <div class="actions"><button class="secondary" (click)="reload()" [disabled]="busy() || saving() || !chosenSip()">Reload package</button><button class="secondary" (click)="download('original')" [disabled]="!document() || downloading()">Download original SIP</button><button class="secondary" (click)="download('metadata')" [disabled]="!document() || downloading()">Download source metadata</button><button class="secondary" (click)="arrange.emit()" [disabled]="!document() || saving()">Arrange dossiers</button></div>
+  </div>
+  @if(error()){<p role="alert" class="error">{{error()}}</p>}
+  @if(message()){<p role="status" class="context-note">{{message()}}</p>}
+  @if(busy()){<p role="status">Opening preserved package…</p>}
+  @if(editing() && chosenSip()){
+    <archive-metadata-editor [transferId]="transferId()" [sipId]="chosenSip()" [revision]="revision()" [sourceSha256]="document()?.input_sha256 || ''" [packageName]="document()?.metadata_path?.split('/')?.[0] || chosenSip()" [originalFilename]="document()?.original_filename || ''" [statistics]="document()?.statistics || null" [kostEnabled]="kostEnabled()" [kostStatuses]="kostStatuses()" [kostReport]="kostReport()" [kostPaths]="kostPaths()" (kostEnabledChange)="kostEnabled.set($event)" (kostStatusesChange)="kostStatuses.set($event)" (kostReportChange)="kostReport.set($event)" (kostFileSelected)="openKostFile($event)" (inspectOriginal)="setEditing(false)" (arrange)="arrange.emit()" (close)="closed.emit()" (about)="about.emit()" (sourceDownload)="download($event)" (changed)="changed.emit()" (working)="editorWorking($event)" (pending)="editorChangedCount($event)"/>
+  }
+  @if(!editing()){@if(document();as doc){
+    <div class="package-summary"><span>eCH {{doc.profile}} · {{doc.kind}}</span><span>{{doc.statistics.payload_files}} payload files · {{doc.statistics.payload_bytes | number}} bytes</span><span>{{doc.statistics.top_level_dossiers}} arrangement units</span></div>
+    <p class="mono source-fixity">Source SHA-256: {{doc.input_sha256}}</p>
+    @if(doc.draft.active;as draft){<p class="context-note">Saved metadata draft {{draft.sequence}} · {{draft.patch_count}} field differences. Source view and operational SIP are unchanged. Approval is held until this draft is resolved.</p>}
+    <div class="handler-grid">
+      <nav class="package-navigator" aria-label="Submission navigation">
+        <div class="pane-tabs"><button [class.active]="view()==='logical'" [attr.aria-pressed]="view()==='logical'" (click)="setView('logical')">Classification</button><button [class.active]="view()==='physical'" [attr.aria-pressed]="view()==='physical'" (click)="setView('physical')">Package contents</button></div>
+        <label class="package-search">Find title, ID or path<input type="search" [ngModel]="query()" (ngModelChange)="query.set($event);tool.set('search')" placeholder="Search this SIP"></label>
+        <ul class="package-tree" [attr.aria-label]="view()==='logical' ? 'Classification hierarchy' : 'ZIP member hierarchy'">
+          @for(row of rows().slice(0,pageSize());track row.node.id){<li [class.selected]="selected()===row.node.id"><div class="tree-row" (contextmenu)="sourceContext($event,row.node)" [style.padding-inline-start.px]="6+row.depth*15">
+            @if(row.expandable){<button class="disclosure" [attr.aria-label]="(expanded().has(row.node.id) ? 'Collapse ' : 'Expand ')+row.node.title" [attr.aria-expanded]="expanded().has(row.node.id)" (click)="toggle(row.node.id)">{{expanded().has(row.node.id) ? '▾' : '▸'}}</button>}@else{<span class="disclosure"></span>}
+            <button aria-haspopup="menu" (keydown)="sourceContextKey($event,row.node)" class="tree-node" [attr.aria-current]="selected()===row.node.id ? 'true' : null" (click)="selectNode(row.node)" [title]="row.node.path"><span class="node-kind" [title]="row.node.kind">{{badge(row.node.kind)}}</span><span>{{row.node.title}}</span></button>
+          </div></li>}
+        </ul>
+        @if(rows().length>pageSize()){<button class="secondary" (click)="pageSize.set(pageSize()+200)">Show 200 more objects</button>}
+      </nav>
+      <section class="package-editor" aria-label="Selected object">
+        @if(detailBusy()){<p role="status">Loading selected object…</p>}
+        @if(detail();as item){
+          <div class="object-heading"><span class="eyebrow">{{item.node.kind}}</span><h3>{{item.node.title}}</h3><span class="mono">{{item.node.source_id || item.node.id}}</span></div>
+          @if(item.node.unit_id){<p class="context-note">Arrangement unit: {{item.node.unit_id}}. Its descendants stay together in the m:n plan.</p>}
+          @if(item.file;as file){
+            <dl class="file-facts"><dt>Submitted path</dt><dd class="mono">{{file.path}}</dd><dt>Size</dt><dd>{{file.size | number}} bytes</dd><dt>SHA-256</dt><dd class="mono">{{file.sha256}}</dd></dl>
+            <archive-kost-file-findings [report]="kostReport()" [path]="file.path" [inputSha256]="doc.input_sha256"/>
+            <button class="secondary" (click)="download('file')" [disabled]="downloading()">Download original member</button>
+            <h4>Text preview</h4>
+            @if(item.preview?.available){<p class="help">Escaped UTF-8 text · @if(item.preview?.truncated){First {{item.preview?.byte_limit | number}} bytes only; preview truncated.}@else{Complete file.}</p><pre class="text-preview">{{item.preview?.text}}</pre>}
+            @else{<p class="context-note">{{item.preview?.reason}}</p>}
+          }
+          @if(item.fields.length){<h4>Source metadata</h4><p class="help">Submitted field names and values. Original metadata remains downloadable.</p><dl class="metadata-fields">@for(field of item.fields;track $index){<dt>{{field.path}}</dt><dd>{{field.value}}</dd>}</dl>@if(item.fields_truncated){<p role="status">Field display limited to 500 entries. Download source metadata for the complete record.</p>}}
+          @if(item.edit_fields.length){<section class="draft-editor" aria-label="Metadata draft fields"><h4>Metadata draft</h4><p class="help">Propose supported text changes separately from the original. Save records your identity, reason and field differences.</p>
+            @for(field of item.edit_fields;track field.field_id){
+              @if(canEdit()){<label [for]="field.field_id">Draft {{field.label}}</label><textarea [id]="field.field_id" [ngModel]="fieldValue(field)" (ngModelChange)="stage(field,$event)" [disabled]="saving()" maxlength="8000" rows="2"></textarea>}
+              @else{<dl><dt>{{field.label}}</dt><dd>{{field.saved_value}}</dd></dl>}
+              @if(field.saved_value!==field.source_value){<small>Saved draft value: {{field.saved_value}}</small>}
+            }
+          </section>}
+          @if(item.xml){<details><summary>XML view of selected object</summary><p class="help">Serialized view; use Download source metadata for exact original bytes.</p>@if(item.xml_truncated){<p>XML view truncated.</p>}<pre>{{item.xml}}</pre></details>}
+          @if(!item.file && !item.fields.length && !item.xml){<p>Select a child object to inspect its metadata or original content.</p>}
+        }@else if(!detailBusy()){<p>Select an object in either navigator.</p>}
+      </section>
+    </div>
+    <section class="package-results" aria-label="Package tools">
+      <div class="pane-tabs"><button [class.active]="tool()==='findings'" [attr.aria-pressed]="tool()==='findings'" (click)="tool.set('findings')">Validation & findings <span>{{doc.findings.length}}</span></button><button [class.active]="tool()==='changes'" [attr.aria-pressed]="tool()==='changes'" (click)="tool.set('changes')">Changes <span>{{pending().size}}</span></button><button [class.active]="tool()==='search'" [attr.aria-pressed]="tool()==='search'" (click)="tool.set('search')">Search results</button><button [class.active]="tool()==='history'" [attr.aria-pressed]="tool()==='history'" (click)="tool.set('history')">Preservation history</button></div>
+      @if(tool()==='changes'){
+        <div class="draft-tools"><h4>Pending browser proposals · {{pending().size}}</h4><p>Unsaved proposals stay in this browser until saved or explicitly discarded.</p>
+          @for(change of pending().values();track change.field_id){<article class="draft-diff"><b>{{change.label}}</b><small>{{change.path}}</small><dl><dt>Saved baseline</dt><dd>{{change.before}}</dd><dt>Proposed value</dt><dd>{{change.value}}</dd></dl></article>}
+          @if(canEdit()){
+            <label for="draft-reason">Metadata change / discard reason</label><textarea id="draft-reason" [(ngModel)]="draftReason" [disabled]="saving()" maxlength="2000" rows="2"></textarea>
+            <div class="actions"><button (click)="saveDraft()" [disabled]="saving() || !pending().size || !draftReason.trim()">Save metadata draft</button><button class="secondary" (click)="discardPending()" [disabled]="saving() || !pending().size">Discard unsaved changes</button><button class="secondary" (click)="exportPending()" [disabled]="!pending().size">Download unsaved proposals</button><button class="secondary" (click)="discardDraft()" [disabled]="saving() || pending().size>0 || !doc.draft.active || !draftReason.trim()">Discard saved draft</button></div>
+          }
+          @if(saving()){<p role="status">Recording metadata decision…</p>}
+          <h4>Saved differences from source</h4>
+          @for(patch of doc.draft.patches;track patch.field_id){<article class="draft-diff"><small>{{patch.path}}</small><dl><dt>Original</dt><dd>{{patch.before}}</dd><dt>Saved draft</dt><dd>{{patch.after}}</dd></dl></article>}@empty{<p>No active saved differences.</p>}
+          <h4>Retained draft revisions</h4>
+          @for(draft of doc.draft.history.slice().reverse();track draft.id){<article class="draft-revision"><b>Draft {{draft.sequence}} · {{doc.draft.active?.id===draft.id ? 'current' : 'retained'}}</b><small>{{draft.created | date:'medium'}} · {{draft.actor}}</small><p>{{draft.reason}}</p><p class="mono">Metadata SHA-256: {{draft.metadata_sha256}}</p><div class="actions"><button class="secondary" (click)="downloadDraft(draft,'metadata')">Download draft metadata</button><button class="secondary" (click)="downloadDraft(draft,'changes')">Download draft change evidence</button></div></article>}
+          <h4>Derived SIP exports</h4>
+          <p>Export a new SIP from the current saved draft. Original SIP, saved draft and approval hold remain retained. Export receipt checks are recorded separately.</p>
+          @if(canEdit() && doc.draft.active){
+            <label for="export-reason">Derived SIP export reason</label><textarea id="export-reason" [(ngModel)]="exportReason" maxlength="2000" rows="2" [disabled]="saving()"></textarea>
+            <button (click)="exportSip()" [disabled]="saving() || pending().size>0 || !exportReason.trim() || hasCurrentExport()">Export derived SIP</button>
+          }
+          @for(item of doc.exports.slice().reverse();track item.id){<article class="draft-revision sip-export"><b>Derived SIP · {{item.internal_status}} receipt checks</b><small>{{item.created | date:'medium'}} · {{item.actor}}</small><p>{{item.reason}}</p><p class="mono">Source SHA-256: {{item.source_sha256}}</p><p class="mono">Draft metadata SHA-256: {{item.metadata_sha256}}</p><p class="mono">Export SHA-256: {{item.sha256}}</p><p>Receipt checks are recorded separately; archival acceptance remains closed.</p><div class="actions"><button class="secondary" (click)="downloadExport(item,'zip')">Download derived SIP</button><button class="secondary" (click)="downloadExport(item,'evidence')">Download export lineage</button></div></article>}
+        </div>
+      }
+      @if(tool()==='findings'){
+        <div class="validation-summary"><span>Receipt checks: {{doc.validation.internal}}</span><span>Archival acceptance: {{doc.validation.acceptance}}</span></div><p class="help">{{doc.validation.internal_scope}}</p>
+        @for(finding of doc.findings;track finding.code){<article class="finding"><span class="badge">{{finding.severity}}</span><div><b>{{finding.message}}</b><p>{{finding.action}}</p></div></article>}
+      }
+      @if(tool()==='search'){
+        <p role="status">{{matches().length}} matches across classification and package contents. Search covers titles, IDs, references and paths.</p>
+        <div class="search-results">@for(node of matches().slice(0,200);track node.id){<button (contextmenu)="sourceContext($event,node)" (keydown)="sourceContextKey($event,node)" class="search-hit" (click)="selectNode(node)"><span>{{node.title}}</span><small>{{node.view}} · {{node.kind}} · {{node.source_id || node.path}}</small></button>}</div>
+        @if(matches().length>200){<p>First 200 matches shown. Refine the query to find a specific object.</p>}
+      }
+      @if(tool()==='history'){
+        <p>Transfer preservation events. Full event details and fixity are available in the Evidence tab.</p>
+        @for(event of events().slice(-12).reverse();track event.id){<article class="handler-event"><b>{{event.type}}</b><span>{{event.outcome}}</span><small>{{event.time | date:'medium'}} · {{event.actor}}</small></article>}
+      }
+    </section>
+    <p class="help">Originals remain immutable. Saved metadata drafts are proposals; derived SIP creation and independent review precede candidate authorization.</p>
+  }@else if(!busy()){<p>Add a SIP in Packages to open its classification, metadata and contents.</p>}}
+<archive-context-menu [state]="contextMenu()" (closed)="contextMenu.set(null)"/>
+</section>

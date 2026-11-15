@@ -1,0 +1,6 @@
+[project]
+name = "ingest-workbench"
+version = "0.0.1"
+description = "Educational reference workflow for archival ingest"
+readme = "README.md"
+license = {file = "LICENSE"}

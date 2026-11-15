@@ -1,0 +1,14 @@
+# Keep host dependencies, runtime data and credentials out of build contexts.
+.git
+.env
+.venv
+.deps
+**/__pycache__
+**/*.pyc
+**/node_modules
+**/dist
+**/.angular
+var
+fixtures
+docs
+*.zip

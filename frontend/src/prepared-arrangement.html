@@ -1,0 +1,34 @@
+<section aria-label="Frozen input arrangement and review">
+  <div class="review-heading"><h3>{{text('frozenArrangement')}}</h3><label>{{text('language')}}<select [ngModel]="language()" (ngModelChange)="language.set($event)"><option value="en">English</option><option value="de">Deutsch</option><option value="fr">Français</option><option value="it">Italiano</option></select></label></div>
+  <p>{{text('arrangementHelp')}}</p><p class="notice">{{text('aipHold')}}</p>
+  @if(error()){<p role="alert" class="error">{{error()}}</p>}
+  @if(busy() || loading()){<p role="status">{{text('operationInProgress')}}</p>}
+  <button class="secondary" (click)="reload()" [disabled]="busy() || loading()"><img src="/package-turbo/folder-open.svg" alt="">{{text('reload')}}</button>
+  @if(document();as doc){
+    @for(choice of doc.choices;track choice.sip_id){<article class="input-choice"><label>{{text('selectedInput')}} · {{choice.sip_id}}<select [attr.data-input-sip]="choice.sip_id" [ngModel]="selected[choice.sip_id]" (ngModelChange)="choose(choice.sip_id,$event)" [disabled]="busy() || loading() || !canEdit()">
+      <option value="" [disabled]="!choice.source_allowed">{{choice.source_allowed ? text('submittedSource') : text('chooseFreeze')}}</option>
+      @for(frozen of choice.frozen;track frozen.id){<option [value]="frozen.id" [disabled]="!frozen.current">{{text(frozen.current?'currentFreeze':'historicalFreeze')}} · {{frozen.created | date:'short'}} · {{frozen.id}}</option>}
+    </select></label><button class="secondary" (click)="openSip.emit(choice.sip_id)" [disabled]="busy()"><img src="/package-turbo/folder-open.svg" alt="">{{text('openHandler')}}</button></article>}
+    @for(binding of doc.bindings;track binding.sip_id){<article class="selected-binding"><b>{{binding.prepared_id ? text('frozenInput') : text('submittedSource')}}</b><p class="mono">SHA-256 · {{binding.input_sha256}}</p><p>{{text('receiptChecks')}}: {{binding.receipt_checks.join(', ')}}</p>
+      <div class="actions"><button class="secondary" (click)="downloadInput(binding,'zip')"><img src="/package-turbo/download.svg" alt="">{{text('selectedZip')}}</button>@if(binding.prepared_id){<button class="secondary" (click)="downloadInput(binding,'evidence')"><img src="/package-turbo/download.svg" alt="">{{text('evidence')}}</button>}</div>
+    </article>}
+    @for(input of doc.input_notes;track input.sip_id){@if(input.notes.length){<details class="selected-notes"><summary>{{text('notes')}} · {{input.notes.length}} · {{input.sip_id}}</summary><p>{{text('notesHelp')}}</p>@for(note of input.notes;track note.id){<article><b>{{note.object_title}} · {{text(note.purpose)}}</b><p style="white-space:pre-wrap">{{note.text}}</p><small>{{note.updated | date:'medium'}} · {{note.updated_by}} · {{text('noteRevision')}} {{note.revision}}</small></article>}</details>}}
+    @for(sip of doc.sips;track sip.id){@for(unit of sip.units;track unit.id){<div class="mapping-row"><div><b>{{unit.title}}</b><small>eCH {{sip.profile}} · {{unit.id}} · {{unit.files.length}} {{text('files')}}</small><details><summary>{{text('selectedMetadata')}}</summary><pre>{{unit.metadata_xml}}</pre></details></div><label>{{text('target')}}<input [ngModel]="assignments[sip.id+':'+unit.id]" (ngModelChange)="markAssignment(sip.id+':'+unit.id,$event)" [disabled]="busy() || !canEdit()"></label></div>}}
+    <label>{{text('mappingReason')}}<textarea [ngModel]="reason" (ngModelChange)="reason=$event;mappingDirty.set(true)" [disabled]="busy() || !canEdit()" maxlength="2000" rows="2"></textarea></label>
+    <button (click)="save()" [disabled]="busy() || loading() || !canEdit() || !validSelection() || !reason.trim()"><img src="/package-turbo/save.svg" alt="">{{text('saveFrozenMapping')}}</button>
+    @if(plan();as plan){
+      @if(!doc.plan_current){<p role="status" class="notice">{{text('reviewStale')}} · {{doc.stale_reason}}</p>}
+      <label>{{text('reviewReason')}}<textarea [(ngModel)]="reviewReason" [disabled]="busy()" maxlength="2000" rows="2"></textarea></label>
+      <button (click)="review()" [disabled]="busy() || loading() || mappingDirty() || !canReview() || !doc.plan_current || !!doc.prepared_review_id || !reviewReason.trim()"><img src="/package-turbo/shield-check.svg" alt="">{{text('recordReview')}}</button>
+      @if(doc.prepared_review_id){<p role="status">{{text(doc.state==='AIP_CANDIDATE'?'candidateBuilt':doc.approval?.review_id?'candidateAuthorized':'reviewRetained')}}</p>}
+      @if(doc.prepared_review_id){
+        <label>{{text('authorizationReason')}}<textarea [(ngModel)]="authorizationReason" [disabled]="busy() || doc.state!=='PLANNED'" maxlength="2000" rows="2"></textarea></label>
+        <div class="actions"><button (click)="authorize()" [disabled]="busy() || loading() || mappingDirty() || !canReview() || !doc.plan_current || doc.state!=='PLANNED' || !authorizationReason.trim()"><img src="/package-turbo/shield-check.svg" alt="">{{text('authorizeCandidate')}}</button>
+        <button (click)="build()" [disabled]="busy() || loading() || mappingDirty() || !canEdit() || !doc.plan_current || doc.state!=='APPROVED' || !doc.approval?.review_id"><img src="/package-turbo/save.svg" alt="">{{text('buildPrepared')}}</button></div>
+      }
+      <p class="help">{{text('independentHelp')}}</p><details><summary>{{text('selectedPlan')}}</summary><pre>{{plan | json}}</pre></details>
+    }
+    @for(review of doc.reviews.slice().reverse();track review.id){<article class="review-record"><b>{{review.id===doc.prepared_review_id ? text('currentReview') : text('historicalReview')}}</b><small>{{review.created | date:'medium'}} · {{review.actor}}</small><p>{{review.reason}}</p><p class="mono">{{review.plan_sha256}}</p><button class="secondary" (click)="download(review)"><img src="/package-turbo/download.svg" alt="">{{text('reviewEvidence')}}</button></article>}
+    @for(candidate of doc.outputs;track candidate.id){<article class="review-record"><b>{{candidate.label}} · {{candidate.version}}</b><small>{{candidate.profile}}</small><p class="mono">{{candidate.sha256}}</p><button class="secondary" (click)="downloadCandidate(candidate.id)"><img src="/package-turbo/download.svg" alt="">{{text('downloadCandidate')}}</button></article>}
+  }
+</section>
