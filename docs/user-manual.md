@@ -6,7 +6,7 @@ generating AIP candidates. It uses the English interface; some workspace
 controls also offer German, French and Italian.
 
 > **Important:** This is an educational reference application, not a production
-> archival acceptance system. Receipt checks, optional KOST validation,
+> archival acceptance system. Receipt checks, optional SIP validation,
 > independent review, candidate authorization, institutional approval and
 > archival acceptance are different decisions. Building a candidate does not
 > deposit it in a repository or accept it in a descriptive system.
@@ -83,7 +83,7 @@ Select **Open Ingest Packager** on a SIP card.
 | **Dossiers** | Browse dossier descendants and referenced files, with reference, date and medium columns. |
 | **Package content** | Browse the physical package and its folder/file hierarchy. |
 | Upper-right editor | View the selected object's fields; **Secondary fields** reveals more available fields. Open objects appear as tabs. |
-| Lower-right tools | Open KOST validation, sampling, hierarchy actions, notes, changes, metadata search or edit history. |
+| Lower-right tools | Open SIP-Validation, sampling, hierarchy actions, notes, changes, metadata search or edit history. |
 | Bottom status bar | See pending proposals and enter the **Editing context / reason** used for attributable actions. |
 
 ![A nested dossier, folder and file selected in the classification tree, with file metadata and fixity fields](images/nested-records.png)
@@ -146,13 +146,15 @@ capability that is disabled or not present.
 
 ## Inspect validation results
 
-Open **KOST-Validation** in the packager to inspect advisory external
+Open **SIP-Validation** in the packager to inspect advisory external
 validation for the received SIP or a frozen input. The external service is
-optional and separately operated; **KOST service is not configured** means it
-has not been enabled, not that the SIP passed.
+optional and separately operated; **SIP Validator service is not configured**
+means it has not been enabled, not that the SIP passed.
+This integration relies on the companion
+[sip-validator service](https://github.com/baddonkey/sip-validator).
 
-Choose the **Validated artifact**, inspect the status and use **Run KOST
-validation** or **Re-run KOST validation** when enabled and authorized.
+Choose the **Validated artifact**, inspect the status and use **Run SIP
+validation** or **Re-run SIP validation** when enabled and authorized.
 Existing submissions may be unassessed. A result belongs to the exact selected
 bytes and is not transferred to a later working version.
 
@@ -254,7 +256,7 @@ unassessed. The shipped policy is not institutionally approved. See the
 | A control is disabled | Check your role, transfer state, pending changes, required reason, current version and whether an operation is still running. |
 | Freeze is disabled | Save or discard proposals, supply a reason, create an applied edit or checkpoint, and check whether the current head is already frozen. |
 | Review or mapping is stale | Reload, select the current frozen input, save the mapping again and obtain a fresh independent review and authorization. |
-| KOST is unavailable or uncertain | Inspect the artifact status and service configuration; do not treat an error or missing report as a pass. Review the uncertain-submission warning before a re-run. |
+| SIP Validator is unavailable or a submission is uncertain | Inspect the artifact status and service configuration; do not treat an error or missing report as a pass. Review the uncertain-submission warning before a re-run. |
 | A change or save reports an error | Read the message and retained history before retrying. Do not assume a failed response means no operation was recorded. |
 
 Preserve existing `.env` settings and named volumes when restarting. For

@@ -6,6 +6,9 @@ Python/FastAPI and Angular reference workflow for eCH-0160 SIP intake, preparati
 
 [Read the illustrated user manual](docs/user-manual.md) for a step-by-step tour of receipt, preparation, review and candidate generation.
 
+Optional SIP-Validation relies on the separately operated
+[sip-validator companion service](https://github.com/baddonkey/sip-validator).
+
 This is a private, non-commercial educational project exploring ingest tools and the potential of agentic programming.
 
 The project is available under the [MIT License](LICENSE), which permits commercial use. See [third-party notices](THIRD_PARTY_NOTICES.md) for bundled material.

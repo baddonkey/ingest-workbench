@@ -2,7 +2,7 @@ export type EditorLanguage = 'de'|'en'|'fr'|'it';
 const languages: EditorLanguage[]=['de','en','fr','it'];
 // Metadata tag identities and values remain unchanged; only UI labels are localized.
 const labels:Record<string,string[]>={
-  kostValidation:['KOST-Validierung','KOST validation','Validation KOST','Validazione KOST'],
+  sipValidation:['SIP-Validierung','SIP-Validation','Validation SIP','Validazione SIP'],
   kostNotRun:['Nicht ausgeführt','Not run','Non exécutée','Non eseguita'],
   copyRow:['Zeile kopieren','Copy row','Copier la ligne','Copia riga'],copyTable:['Tabelle kopieren','Copy table','Copier le tableau','Copia tabella'],
   notesAll:['Alle Notizen','All notes','Toutes les notes','Tutte le note'],notesForObject:['Notizen dieses Objekts','Notes for this object','Notes de cet objet','Note di questo oggetto'],notePlaceholder:['Notiz zum ausgewählten Objekt…','Note for the selected object…','Note pour l’objet sélectionné…','Nota per l’oggetto selezionato…'],saveNote:['Notiz speichern','Save note','Enregistrer la note','Salva nota'],notesObject:['Objekt','Object','Objet','Oggetto'],notesObjectName:['Objektname','Object name','Nom de l’objet','Nome oggetto'],notesNote:['Notiz','Note','Note','Nota'],notesDate:['Datum','Date','Date','Data'],notesAuthor:['Erfasser','Author','Auteur','Autore'],notesPendingFields:['Metadatenänderungen zuerst speichern oder verwerfen.','Save or discard metadata changes before saving a note.','Enregistrez ou abandonnez les modifications de métadonnées avant de sauvegarder une note.','Salva o scarta le modifiche ai metadati prima di salvare una nota.'],notesEmpty:['Keine Notizen in dieser Ansicht.','No notes in this view.','Aucune note dans cette vue.','Nessuna nota in questa vista.'],
