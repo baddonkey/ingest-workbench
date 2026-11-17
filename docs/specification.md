@@ -51,6 +51,22 @@ The Transfers overview queries tenant-scoped pages through `GET /api/transfer-pa
 5. Obtain independent review from a different authorized subject. Review binds exact inputs, plan, context and documentation digests.
 6. Permit candidate creation only through the explicit applicable authorization. Candidate creation is not archival acceptance.
 
+The packager's inline **Validation** view presents working-state prerequisites,
+**Freeze & validate**, the latest frozen input's identity and internal checks,
+and its advisory external-validation status. It does not open a versions drawer.
+An initial unchanged input is frozen by automatically recording a named
+checkpoint through the existing attributable-command API, followed by the
+idempotent freeze API. These are separate retained operations: a failed freeze
+can leave the checkpoint, but never a successful snapshot card without a retained
+snapshot. The reason is collected beside the action. Named manual checkpoints
+remain in edit history. External findings are inspected in the existing
+SIP-Validation panel with the exact frozen artifact selected. Missing or failed
+external results are not passes and remain advisory rather than a new gate.
+The current snapshot can be passed explicitly into the m:n arrangement preview;
+the mapping must still be saved, reviewed and authorized separately. Subsequent
+proposals disable handoff; applied edits or checkpoints require a successor
+freeze. Earlier snapshots retain results and downloads in collapsed history.
+
 Receipt findings, specialist format validation, preservation readiness, reviewer approval, AIP candidate authorization and acceptance must never be conflated. Unknown facts remain unknown; a failed/unsupported/error check is not a pass.
 
 ## Package preparation contract

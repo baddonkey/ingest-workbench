@@ -1,5 +1,6 @@
 import {Component,OnChanges,OnDestroy,SimpleChanges,computed,inject,input,output,signal} from '@angular/core';
 import {CommonModule} from '@angular/common';
+import {FormsModule} from '@angular/forms';
 import {ArchiveApi} from './archive-api';
 import {KEYCLOAK} from './identity';
 import {KostEntry,KostReport,kostOutcome} from './kost-report.types';
@@ -15,7 +16,7 @@ interface KostTarget {target_id:string;prepared_id:string|null;input_sha256:stri
 interface KostInventory {enabled:boolean;advisory:boolean;targets:KostTarget[]}
 interface KostHistory {runs:KostRun[];next:string|null}
 
-@Component({selector:'archive-kost-validation',standalone:true,imports:[CommonModule,KostFileFindings],
+@Component({selector:'archive-kost-validation',standalone:true,imports:[CommonModule,FormsModule,KostFileFindings],
   templateUrl:'./kost-validation.html',styleUrl:'./kost-validation.css'})
 export class KostValidation implements OnChanges,OnDestroy {
   transferId=input.required<string>();sipId=input.required<string>();revision=input.required<number>();

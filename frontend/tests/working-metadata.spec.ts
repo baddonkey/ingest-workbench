@@ -53,8 +53,38 @@ test('all navigator descendants, shared file references and pane selection remai
   await content.locator('[data-navigation-key="'+inventoryFile.key+'"] .metadata-object').click();
   await expect(content.getByRole('button',{name:'Package content',exact:true})).toHaveAttribute('aria-pressed','true');
   const classificationFile=classificationRows.find(row=>row.object_id===file.object_id)!;
+  const contentList=content.locator('.object-list');
+  await contentList.evaluate(element=>{element.style.maxHeight='24px';});
+  async function expectInContentViewport(key:string){
+    const row=content.locator('[data-navigation-key="'+key+'"]');
+    await expect(row.locator('.metadata-object')).toHaveAttribute('aria-current','true');
+    await expect.poll(()=>row.evaluate(element=>{
+      const list=element.closest('.object-list')!,bounds=list.getBoundingClientRect(),selected=element.getBoundingClientRect();
+      return selected.top>=bounds.top-1 && selected.bottom<=bounds.top+list.clientHeight+1;
+    })).toBe(true);
+  }
+  await contentList.evaluate(element=>{element.scrollTop=0;});
+  await expect(content.locator('[data-navigation-key="'+inventoryFile.key+'"]')).not.toBeInViewport({ratio:1});
   await classification.locator('[data-navigation-key="'+classificationFile.key+'"] .metadata-object').click();
   await expect(content.getByRole('button',{name:'Package content',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expectInContentViewport(inventoryFile.key);
+  const hierarchyOnly=classificationRows.find(row=>dossierRows.some(dossier=>dossier.object_id===row.object_id)&&!inventoryRows.some(item=>item.object_id===row.object_id))!;
+  await classification.locator('[data-navigation-key="'+hierarchyOnly.key+'"] .metadata-object').click();
+  await expect(content.getByRole('button',{name:'Dossiers',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expectInContentViewport(dossierRows.find(row=>row.object_id===hierarchyOnly.object_id)!.key);
+  await content.locator('[data-navigation-key="'+file.parent_key+'"] .disclosure').click();
+  await expect(content.locator('[data-navigation-key="'+file.key+'"]')).toHaveCount(0);
+  await content.getByRole('searchbox').fill('No matching navigator object');
+  await classification.locator('[data-navigation-key="'+classificationFile.key+'"] .metadata-object').click();
+  await expect(content.getByRole('button',{name:'Dossiers',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(content.getByRole('searchbox')).toHaveValue('');
+  await expectInContentViewport(file.key);
+  await contentList.evaluate(element=>{element.scrollTop=0;});
+  await expect(content.locator('[data-navigation-key="'+file.key+'"]')).not.toBeInViewport({ratio:1});
+  await classification.locator('[data-navigation-key="'+classificationFile.key+'"] .metadata-object').click();
+  await expectInContentViewport(file.key);
+  await expect(classification.locator('[data-navigation-key="'+classificationFile.key+'"] .metadata-object')).toBeFocused();
+  await contentList.evaluate(element=>{element.style.maxHeight='';});
   await expect(classification.locator('.metadata-object')).toHaveCount(classificationRows.length);
   await page.screenshot({path:resolve('..','var','browser','complete-navigators-desktop.png'),fullPage:true});
   await page.setViewportSize({width:390,height:844});
@@ -113,6 +143,7 @@ test('full working metadata, applied history, undo/redo, checkpoints and METS/PR
   await expect(editor.getByRole('button',{name:'Redo',exact:true})).toBeEnabled();
   await editor.getByRole('button',{name:'Redo',exact:true}).click();
   await expect(description.getByRole('textbox',{name:'System description',exact:true})).toHaveValue('A complete editable provenance field, retained as an applied change.');
+  await editor.locator('.reference-toolbar').getByRole('button',{name:/^Edit history/}).click();
   await editor.getByRole('textbox',{name:'Checkpoint name',exact:true}).fill('Metadata reviewed checkpoint');
   await editor.getByRole('button',{name:'Save checkpoint',exact:true}).click();
   await expect(editor.getByRole('textbox',{name:'Checkpoint name',exact:true})).toHaveValue('');

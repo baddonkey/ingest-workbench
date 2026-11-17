@@ -1,10 +1,10 @@
-import {Component,ElementRef,OnChanges,OnDestroy,SimpleChanges,computed,inject,input,output,signal,viewChild} from '@angular/core';
+import {Component,ElementRef,Injector,OnChanges,OnDestroy,SimpleChanges,afterNextRender,computed,inject,input,output,signal,viewChild} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {ArchiveApi} from './archive-api';
 import {KEYCLOAK} from './identity';
 import {MetadataFieldEditor} from './metadata-field';
-import {MetadataField,MetadataObject,MetadataRow,MetadataWorkspace,MetadataOperation,PreparedInput,PreparationNote,ReorderGroup,CreationOption,MetadataNavigator,MetadataTreeObject,MetadataSample} from './metadata-editor.types';
+import {MetadataField,MetadataObject,MetadataRow,MetadataWorkspace,MetadataOperation,PreparedInput,PreparedSelection,PreparationNote,ReorderGroup,CreationOption,MetadataNavigator,MetadataTreeObject,MetadataSample} from './metadata-editor.types';
 import {EditorLanguage,editorText} from './metadata-editor.locale';
 import {ContextMenu,ContextMenuState,ContextCommand} from './context-menu';
 import {KostValidation} from './kost-validation';
@@ -21,10 +21,12 @@ export class MetadataEditor implements OnChanges,OnDestroy {
   kostReportChange=output<KostReport|null>();kostFileSelected=output<{path:string;input_sha256:string}>();
   sourceSha256=input('');
   inspectOriginal=output<void>();arrange=output<void>();close=output<void>();about=output<void>();sourceDownload=output<'original'|'metadata'>();
+  arrangePrepared=output<PreparedSelection>();
   packageName=input('');originalFilename=input('');statistics=input<{payload_files:number;payload_bytes:number}|null>(null);
-  contextMenu=signal<ContextMenuState|null>(null);versionsOpen=signal(false);
+  contextMenu=signal<ContextMenuState|null>(null);
   kostPanel=viewChild(KostValidation);
   editorLayout=viewChild<ElementRef<HTMLElement>>('editorLayout');
+  private injector=inject(Injector);
   upperPanePercent=signal(60);
   private splitterDrag:{pointerId:number;startY:number;startPercent:number;height:number}|null=null;
   editorView=signal<'overview'|'metadata'|'statistics'|'validation'>('overview');
@@ -38,8 +40,10 @@ export class MetadataEditor implements OnChanges,OnDestroy {
     if(kind){const node=this.document()?.nodes.find(n=>n.kind===kind);if(node)this.select(node.id);}
     this.editorView.set(view);
   }
-  openVersions(){this.versionsOpen.set(true);}
-  validationView(){this.chooseEditor('validation');this.openVersions();}
+  validationView(){
+    this.chooseEditor('validation');
+    this.openKostValidation(this.latestFrozen()?.id || 'received');
+  }
   openKostValidation(target='received'){this.setTool('kost');this.kostPanel()?.show(target);}
   startSplitterDrag(event:PointerEvent){
     if(event.button!==0)return;
@@ -239,7 +243,7 @@ export class MetadataEditor implements OnChanges,OnDestroy {
   async saveNote(){const draft=this.noteDraft();if(!draft || !this.canSaveNote() || !this.requireReason(()=>this.saveNote(),'saveNote'))return;await this.mutate(draft.before?'note-edit':'note-add',{node_id:draft.node_id,note_id:draft.before?.id||null,note_before:draft.before,note_text:draft.text,note_purpose:draft.purpose});if(!this.noteDraft())this.noteDialog()?.nativeElement.close();}
   private async removeNote(note:PreparationNote){if(this.requireReason(()=>this.removeNote(note),'deleteNote'))await this.mutate('note-delete',{node_id:note.node_id,note_id:note.id,note_before:note});}
   async deleteNote(note:PreparationNote){if(this.busy() || !this.canEdit() || this.pendingCount())return;if(window.confirm(this.text('confirmDeleteNote')))await this.removeNote(note);}
-  search=signal('');secondary=signal(false);opened=signal<string[]>([]);
+  search=signal('');secondary=signal(false);
   collapsed=signal(new Set<string>());
   parents=computed(()=>{const result=new Map<string,string[]>(),stack:MetadataObject[]=[];for(const node of this.document()?.nodes||[]){while(stack.length && stack[stack.length-1].depth>=node.depth)stack.pop();result.set(node.id,stack.map(n=>n.id));stack.push(node);}return result;});
   classificationKinds=new Set(['paket','ablieferung','provenienz','ordnungssystem','ordnungssystemposition']);
@@ -260,13 +264,33 @@ export class MetadataEditor implements OnChanges,OnDestroy {
   visibleClassification=computed(()=>this.visibleRows(this.classification()));
   visibleObjects=computed(()=>this.query().trim()?this.objects():this.visibleRows(this.objects()));
   branches=computed(()=>new Set(Object.values(this.navigationRows()).flat().map(node=>node.parent_key).filter((key):key is string=>!!key)));
-  tabs=computed(()=>this.opened().map(id=>this.document()?.nodes.find(n=>n.id===id)).filter(n=>!!n));
   searchResults=computed(()=>{const q=this.search().trim().toLocaleLowerCase();return q?(this.document()?.nodes||[]).flatMap(node=>node.fields.flatMap(field=>{const value=this.describe(field.values);return value.toLocaleLowerCase().includes(q)?[{node,field,value}]:[];})):[];});
   proposed=computed(()=>this.document()?.nodes.flatMap(node=>node.fields.filter(field=>this.drafts().has(field.id!)).map(field=>({node,field})))||[]);
   drafts=signal(new Map<string,MetadataRow[]>());reason='';checkpointName='';comparison=signal<{object:string;field:string;before:string;after:string}[]|null>(null);
   private generation=0;private activeKey='';private retry:{signature:string;request:object}|null=null;
   private freezeRetry:{signature:string;request:object}|null=null;
   frozenCurrent=computed(()=>this.document()?.prepared_inputs.find(r=>r.operation_id===this.document()?.state.head));
+  latestFrozen=computed(()=>this.document()?.prepared_inputs.at(-1));
+  previousFrozen=computed(()=>this.document()?.prepared_inputs.slice(0,-1).reverse()||[]);
+  freezeBlocked(){
+    if(this.busy())return this.text('freezeBusy');
+    if(this.pendingCount())return this.text('freezePending');
+    if(this.frozenCurrent())return this.text('freezeAlreadyCurrent');
+    if(!this.reason.trim())return this.text('freezeNeedsReason');
+    return '';
+  }
+  externalStatus(record:PreparedInput){
+    const panel=this.kostPanel(),inventory=panel?.inventory();
+    if(panel?.error())return this.text('validatorUnavailable');
+    if(!panel || !inventory)return this.text('validatorLoading');
+    if(!inventory.enabled)return this.text('validatorDisabled');
+    const target=inventory.targets.find(t=>t.target_id===record.id);
+    return target?panel.status(target.latest):this.text('validatorLoading');
+  }
+  usePrepared(record:PreparedInput){
+    if(this.busy() || this.pendingCount() || !this.canEdit() || record.id!==this.frozenCurrent()?.id)return;
+    this.arrangePrepared.emit({sip_id:this.sipId(),prepared_id:record.id});
+  }
   assessmentSha256=computed(()=>this.frozenCurrent()?.sha256 || (this.document()?.state.changed?'':this.document()?.source_sha256||''));
   selectedObject=computed(()=>this.document()?.nodes.find(n=>n.id===this.selected()));
   objects=computed(()=>{
@@ -292,7 +316,7 @@ export class MetadataEditor implements OnChanges,OnDestroy {
   base(){return '/api/transfers/'+this.transferId()+'/sips/'+this.sipId()+'/preparation';}
   ngOnChanges(changes:SimpleChanges){
     const key=this.transferId()+':'+this.sipId();
-    if(key!==this.activeKey){this.activeKey=key;this.notesOwner.set(null);this.selected.set('');this.opened.set([]);this.collapsed.set(new Set());this.reason='';this.comparison.set(null);void this.load();}
+    if(key!==this.activeKey){this.activeKey=key;this.notesOwner.set(null);this.selected.set('');this.collapsed.set(new Set());this.reason='';this.comparison.set(null);void this.load();}
     else if(changes['revision'] && this.document() && this.revision()!==this.document()!.revision && !this.busy() && !this.pendingCount())void this.load();
   }
   ngOnDestroy(){this.generation++;}
@@ -304,7 +328,6 @@ export class MetadataEditor implements OnChanges,OnDestroy {
       if(generation!==this.generation)return;
       this.document.set(doc);this.retry=null;this.freezeRetry=null;
       if(!doc.nodes.some(n=>n.id===this.selected()))this.selected.set((doc.nodes.find(n=>n.kind==='ablieferung')||doc.nodes[0])?.id||'');
-      if(this.selected() && !this.opened().includes(this.selected()))this.opened.update(ids=>[...ids,this.selected()]);
     }catch(error){if(generation===this.generation)this.error.set(error instanceof Error?error.message:'Metadata workspace could not be loaded');}
   }
   discardPending(ask=true){
@@ -317,18 +340,29 @@ export class MetadataEditor implements OnChanges,OnDestroy {
     const node=this.document()?.nodes.find(n=>n.id===id);if(!node)return;
     this.selected.set(id);
     this.editorView.set(node.kind==='ablieferung'||node.kind==='provenienz'?'overview':'metadata');
+    let revealContent=false;
+    if(source==='classification'){
+      const rows=this.navigationRows(),current=this.navigator(),other=current==='hierarchy'?'inventory':'hierarchy';
+      if(!rows[current].some(row=>row.id===id) && rows[other].some(row=>row.id===id))this.navigator.set(other);
+      revealContent=rows[this.navigator()].some(row=>row.id===id);
+      if(revealContent && !this.objectIds().has(id))this.query.set('');
+    }
     const ancestors=new Set<string>();
-    const occurrences=Object.values(this.navigationRows()).flat().filter(row=>rowKey?row.navigation_key===rowKey:row.id===id);
+    const occurrences=Object.values(this.navigationRows()).flat().filter(row=>rowKey?row.navigation_key===rowKey || (revealContent && row.id===id):row.id===id);
     for(const row of occurrences){let parent=row.parent_key;while(parent){ancestors.add(parent);parent=this.navigationParents().get(parent)||null;}}
     this.collapsed.update(all=>new Set([...all].filter(parent=>!ancestors.has(parent))));
     if(source && source!=='classification')this.navigator.set(source);
     else if(!source && !this.classificationKinds.has(node.kind))this.navigator.set(node.kind==='datei'||node.kind==='ordner'?'inventory':'hierarchy');
     if(!this.classificationKinds.has(node.kind) && !this.objectIds().has(id))this.query.set('');
-    if(!this.opened().includes(id))this.opened.update(ids=>[...ids,id]);
-  }
-  closeObject(id:string){
-    const remaining=this.opened().filter(open=>open!==id);if(!remaining.length)return;
-    this.opened.set(remaining);if(this.selected()===id)this.select(remaining[remaining.length-1]);
+    if(revealContent)afterNextRender(()=>{
+      if(this.selected()!==id)return;
+      const list=this.editorLayout()?.nativeElement.querySelector<HTMLElement>('.content-pane .object-list');
+      const row=list?.querySelector<HTMLElement>('.tree-row.selected');
+      if(!list || !row)return;
+      const bounds=list.getBoundingClientRect(),selected=row.getBoundingClientRect(),top=bounds.top+list.clientTop,bottom=top+list.clientHeight;
+      if(selected.top<top)list.scrollTop+=selected.top-top;
+      else if(selected.bottom>bottom)list.scrollTop+=selected.bottom-bottom;
+    },{injector:this.injector});
   }
   hasChildren(node:MetadataTreeObject){return this.branches().has(node.navigation_key);}
   toggleNode(id:string){this.collapsed.update(all=>{const next=new Set(all);if(next.has(id))next.delete(id);else next.add(id);return next;});}
@@ -357,7 +391,7 @@ export class MetadataEditor implements OnChanges,OnDestroy {
     const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),anchor=document.createElement('a');
     anchor.href=url;anchor.download='ingest-packager-sample.csv';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
-  openSearchResult(id:string){this.select(id);this.tool.set('hierarchy');}
+  openSearchResult(id:string){this.select(id);}
   primary(field:MetadataField){return !!field.minimum || ['titel','name','ablieferungstyp','ablieferndeStelle','ablieferungsnummer','aktenbildnerName','aktenzeichen','entstehungszeitraum','schutzfristenkategorie','schutzfrist','systemName','registratur','systemBeschreibung'].includes(field.tag) || this.drafts().has(field.id!);}
   navigatorDepth(node:MetadataTreeObject){return node.navigation_depth;}
   timespan(node:MetadataObject){const rows=node.fields.find(f=>f.tag==='entstehungszeitraum')?.values||[];const strings=(row:MetadataRow):string[]=>[row.text,...Object.values(row.children).flatMap(children=>children.flatMap(strings))].filter(Boolean);return rows.flatMap(strings).join(' - ');}
@@ -386,15 +420,18 @@ export class MetadataEditor implements OnChanges,OnDestroy {
   async checkpoint(){if(!this.pendingCount() && this.checkpointName.trim())await this.mutate('checkpoint',{name:this.checkpointName});}
   preparedBase(){return '/api/transfers/'+this.transferId()+'/sips/'+this.sipId()+'/prepared-inputs';}
   async freeze(){
+    if(!this.document() || this.freezeBlocked() || !this.canEdit())return;
+    if(!this.document()!.state.head && !await this.mutate('checkpoint',{name:this.text('freezeCheckpoint')}))return;
     const doc=this.document();
-    if(!doc?.state.head || this.busy() || this.pendingCount() || !this.reason.trim() || !this.canEdit() || this.frozenCurrent())return;
+    if(!doc?.state.head || this.freezeBlocked())return;
     const signature=JSON.stringify({head:doc.state.head,reason:this.reason});
     if(this.freezeRetry?.signature!==signature)this.freezeRetry={signature,request:{request_id:crypto.randomUUID(),revision:doc.revision,source_sha256:doc.source_sha256,operation_id:doc.state.head,reason:this.reason}};
     const generation=this.generation;this.busy.set(true);this.working.emit(true);this.error.set('');
     try{
-      await this.api.request(this.preparedBase(),{method:'POST',body:JSON.stringify(this.freezeRetry.request)});
+      const result=await this.api.request<{prepared_input:PreparedInput}>(this.preparedBase(),{method:'POST',body:JSON.stringify(this.freezeRetry.request)});
       if(generation!==this.generation)return;
       this.message.set(this.text('frozenSaved'));this.freezeRetry=null;await this.load();this.changed.emit();
+      this.openKostValidation(result.prepared_input.id);
     }catch(error){if(generation===this.generation)this.error.set(error instanceof Error?error.message:'Freeze failed');}
     finally{this.busy.set(false);this.working.emit(false);}
   }
@@ -404,15 +441,15 @@ export class MetadataEditor implements OnChanges,OnDestroy {
   }
   async action(kind:'undo'|'redo'|'restore',target_id?:string){if(this.discardPending())await this.mutate(kind,{target_id:target_id||null});}
   private async mutate(kind:string,extra:object,fieldId?:string){
-    if(this.hierarchyDraft() && kind!=='structure-reorder')return;
-    if(this.creationDraft() && kind!=='structure-create')return;
-    const doc=this.document();if(!doc || this.busy() || !this.reason.trim() || !this.canEdit())return;
+    if(this.hierarchyDraft() && kind!=='structure-reorder')return false;
+    if(this.creationDraft() && kind!=='structure-create')return false;
+    const doc=this.document();if(!doc || this.busy() || !this.reason.trim() || !this.canEdit())return false;
     const signature=JSON.stringify({kind,extra,reason:this.reason});
     if(this.retry?.signature!==signature)this.retry={signature,request:{request_id:crypto.randomUUID(),revision:doc.revision,source_sha256:doc.source_sha256,base_operation_id:doc.state.head,kind,reason:this.reason,...extra}};
     const generation=this.generation;this.busy.set(true);this.working.emit(true);this.error.set('');
     try{
       await this.api.request(this.base()+'/commands',{method:'POST',body:JSON.stringify(this.retry.request)});
-      if(generation!==this.generation)return;
+      if(generation!==this.generation)return false;
       if(fieldId){const next=new Map(this.drafts());next.delete(fieldId);this.drafts.set(next);this.emitPending();}
       if(kind.startsWith('note-')){this.noteDraft.set(null);this.emitPending();}
       if(kind==='structure-reorder'){this.hierarchyDraft.set(null);this.emitPending();}
@@ -425,7 +462,8 @@ export class MetadataEditor implements OnChanges,OnDestroy {
       // Other unapplied fields stay visible, but their old row/transfer baselines must be reviewed.
       if(remaining.size)this.error.set('Other field proposals remain. Reload or review their current baseline before applying.');
       this.changed.emit();
-    }catch(error){if(generation===this.generation)this.error.set(error instanceof Error?error.message:'Metadata operation failed');}
+      return !this.error();
+    }catch(error){if(generation===this.generation)this.error.set(error instanceof Error?error.message:'Metadata operation failed');return false;}
     finally{this.busy.set(false);this.working.emit(false);}
   }
   describe(rows:MetadataRow[]|undefined):string{return (rows||[]).map(r=>[r.text,...Object.entries(r.attributes).map(([k,v])=>v?this.text(k)+': '+v:''),...Object.entries(r.children).map(([k,v])=>v.length?this.text(k)+': '+this.describe(v):'')].filter(Boolean).join(' · ')).join('\n');}

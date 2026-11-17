@@ -6,6 +6,7 @@ import { ArchiveApi } from './archive-api';
 import { EditableField, HandlerEvent, HandlerSip, MetadataDraft, PackageNode, PackageNodeDetail, PackageWorkspace, SipExport } from './package-handler.types';
 import { KEYCLOAK } from './identity';
 import { MetadataEditor } from './metadata-editor';
+import { PreparedSelection } from './metadata-editor.types';
 import {ContextMenu,ContextMenuState} from './context-menu';
 import {KostFileFindings} from './kost-file-findings';
 import {KostReport} from './kost-report.types';
@@ -53,6 +54,7 @@ export class PackageHandler implements OnChanges, OnDestroy {
   readonly events = input.required<HandlerEvent[]>();
   readonly openSipId = input<string>('');
   readonly arrange = output<void>();
+  readonly arrangePrepared = output<PreparedSelection>();
   readonly closed = output<void>();
   readonly changed = output<void>();
   readonly about = output<void>();

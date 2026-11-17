@@ -23,11 +23,10 @@
 .tool-body:has(>.metadata-search-scroll){display:flex;flex-direction:column;overflow:hidden}
 .metadata-search-scroll{flex:1;min-height:0;min-width:0;overflow:auto;overscroll-behavior:contain}
 .metadata-search-table th:nth-child(1){width:18%}.metadata-search-table th:nth-child(2){width:25%}.metadata-search-table th:nth-child(3){width:25%}.metadata-search-table th:nth-child(4){width:32%}
-.metadata-search-link{border:0;background:transparent;padding:0;min-height:0;text-align:left;font:inherit;color:var(--link);text-decoration:underline;white-space:pre-wrap;scroll-margin-block-start:40px}
-.search-hit-count{flex:none;margin:0;padding:4px 7px;border-bottom:1px solid var(--line);font-size:11px}
-.editor-layout.search-mode{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);flex:1;min-height:0}
-.editor-layout.search-mode>.navigator-pane,.editor-layout.search-mode>.object-editor{display:none}
-.editor-layout.search-mode>.tools-pane{grid-area:1/1;min-height:0;max-height:none;flex:1}
+.metadata-workspace .metadata-search-link{border:0;background:transparent;padding:0;min-height:0;text-align:left;font:inherit;color:var(--link);text-decoration:underline;white-space:pre-wrap;scroll-margin-block-start:40px}
+.metadata-search-toolbar{display:flex;align-items:center;gap:7px;flex:none;padding:4px;border-bottom:1px solid var(--line)}
+.metadata-search-toolbar input{flex:1;min-width:0;width:100%}
+.search-hit-count{flex:none;font-size:11px;white-space:nowrap}
 .metadata-search-table{min-width:0}
 .editor-layout{grid-template-rows:minmax(150px,var(--upper-pane-height,60%)) 8px minmax(120px,1fr)}
 .navigator-pane{grid-area:1/1/4/2;display:grid;grid-template-rows:minmax(0,60%) minmax(0,1fr);min-width:0;min-height:0}
@@ -37,8 +36,21 @@
 .workspace-splitter span{width:48px;height:2px;background:var(--line-dark);border-radius:2px}
 .workspace-splitter:hover span,.workspace-splitter:focus-visible span{background:var(--accent)}
 .workspace-splitter:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
-.editor-layout.search-mode>.workspace-splitter{display:none}
 @media(max-width:600px){.navigator-pane{display:flex;flex-direction:column;flex:none}.navigator-pane>.classification-pane{min-height:140px}.navigator-pane>.content-pane{min-height:180px}.workspace-splitter{display:none}}
 .tool-body:has(>.kost-panel-container.active){display:flex;flex-direction:column;overflow:hidden}
 .kost-panel-container.active{display:flex;flex:1;min-height:0}
 .kost-panel-container.active>archive-kost-validation{display:flex;flex:1;min-height:0;max-height:none;overflow:auto}
+/* Validation and snapshot actions stay in the editor flow, not an overlay. */
+.validation-workflow{max-width:100%;padding:8px;line-height:1.45}
+.validation-workflow h3,.validation-workflow h4{margin:0 0 8px}
+.validation-workflow .workflow-steps{font-weight:600}
+.working-validation,.validation-workflow .prepared-version{border:1px solid var(--line-dark);padding:12px;margin:10px 0;background:var(--field-bg)}
+.working-validation label{display:flex;flex-direction:column;gap:4px;margin:8px 0}
+.working-validation input{width:100%;box-sizing:border-box}
+.validation-workflow .prepared-version small{display:block}
+.validation-workflow .mono{overflow-wrap:anywhere;white-space:normal}
+.validation-workflow .editor-actions{display:flex;flex-wrap:wrap;gap:6px}
+.validation-workflow button{white-space:normal;text-align:left}
+.validation-workflow .previous-versions{margin:12px 0}
+.validation-workflow .help{margin:8px 0}
+.metadata-workspace .checkpoint{position:static;display:flex;flex-wrap:wrap;align-items:center;width:auto;height:auto;gap:8px;margin:0 0 8px;padding:8px;box-sizing:border-box}

@@ -23,7 +23,7 @@ using a KOST reference SIP; names, counts and dates will differ in your work.
 - [Explore the Ingest Packager](#explore-the-ingest-packager)
 - [Prepare metadata and structure](#prepare-metadata-and-structure)
 - [Inspect validation results](#inspect-validation-results)
-- [Freeze a prepared version](#freeze-a-prepared-version)
+- [Freeze, validate and select a prepared version](#freeze-validate-and-select-a-prepared-version)
 - [Arrange, review and build](#arrange-review-and-build)
 - [Evidence and preservation context](#evidence-and-preservation-context)
 - [Troubleshooting](#troubleshooting)
@@ -82,19 +82,26 @@ Select **Open Ingest Packager** on a SIP card.
 | **Classification navigator** | Expand or collapse the classification hierarchy and select a record or referenced file. |
 | **Dossiers** | Browse dossier descendants and referenced files, with reference, date and medium columns. |
 | **Package content** | Browse the physical package and its folder/file hierarchy. |
-| Upper-right editor | View the selected object's fields; **Secondary fields** reveals more available fields. Open objects appear as tabs. |
-| Lower-right tools | Open SIP-Validation, sampling, hierarchy actions, notes, changes, metadata search or edit history. |
+| Upper-right editor | View the currently selected object's fields; **Secondary fields** reveals more available fields. Select another object in the navigator to switch; there are no open-object tabs to manage. |
+| Lower-right tools | Open SIP-Validation, sampling, notes, changes, metadata search or edit history. Object creation and reordering controls open through the navigator actions. |
 | Bottom status bar | See pending proposals and enter the **Editing context / reason** used for attributable actions. |
 
 ![A nested dossier, folder and file selected in the classification tree, with file metadata and fixity fields](images/nested-records.png)
 
 The navigators are independently scrollable. Expand branches to follow nested
-dossiers, folders, documents and files; selecting a referenced file does not
-change the Dossiers navigator into Package content. The same file can appear
+dossiers, folders, documents and files. Selecting an item in the classification
+navigator reveals and scrolls to it in the active Dossiers or Package content
+view, expanding its ancestors and clearing a filter if it hides the selection.
+The view switches only if the item is available exclusively in the other view.
+The same file can appear
 under more than one logical owner without becoming a different file.
 Use the horizontal splitter between the editor and tools to give either pane
 more space. The search box in the lower navigator filters that navigator;
-**Search metadata** searches metadata values and opens matching objects.
+**Search metadata** searches applied metadata values in the lower-right tools
+pane, leaving both navigators and the editor visible. The query and match count
+sit above the results table. Selecting an object name opens its metadata in the
+editor without closing the search or discarding its results. The header search
+box opens the same search pane; results update as you type.
 
 ![Package content navigator expanded through the package header and schema folder](images/package-content.png)
 
@@ -127,11 +134,11 @@ or leaving can discard unsaved proposals.
 
 ### Work with hierarchy, notes and samples
 
-- Select a suitable parent and open **Hierarchy** to see available object
+- Select a suitable parent and use the navigator's **+** button to see available object
   creation actions. Supply the required fields and reason, **Preview
   creation**, inspect the proposal, then **Create objects**. Available object
   types depend on the selected parent and profile.
-- Where offered, preview a sibling reorder in **Hierarchy** and apply it with a
+- Where offered, use an object's context menu to preview a sibling reorder and apply it with a
   reason. Not all moves, deletions, payload edits or SIP creation are implemented.
 - Select an object and use **New note** or **Notes** to record object-linked
   preparation context. Notes can be internal or marked as a description
@@ -167,23 +174,44 @@ confirmed re-run can create a duplicate. Consult the
 [KOST operations guidance](specification.md#advisory-kost-sip-validation)
 before configuring or troubleshooting the integration.
 
-## Freeze a prepared version
+## Freeze, validate and select a prepared version
 
-![Frozen prepared versions panel showing a retained version, its SHA-256 and download actions](images/frozen-version.png)
+![Inline Validation view showing the working state, a frozen version, internal checks and actions for inspecting results and m:n arrangement](images/frozen-version.png)
 
-Freezing binds the prepared SIP and evidence to an applied working head.
+Open the packager's **Validation** tab. It stays in the editor rather than
+opening an overlay. The workflow is **Working state → Freeze & validate →
+Inspect results → m:n arrangement**.
 
-1. Save or discard pending proposals, and enter an **Editing context / reason**.
-2. Open **Versions / validation**. If there is no applied working head yet,
-   enter a **Checkpoint name** and select **Save checkpoint**.
-3. Select **Freeze working version**. Wait for the version card and check its
-   status and SHA-256.
-4. Use **Download prepared SIP** and **Download METS/PREMIS evidence** when
-   needed. KOST can assess the frozen input separately.
+1. Save or discard pending proposals. The view explains what prevents freezing
+   and offers those actions beside the working-state status.
+2. Enter a **Snapshot reason**, then select **Freeze & validate**. An unchanged
+   submission can be frozen directly: the workbench records its initial
+   checkpoint automatically. Named checkpoints remain available in **Edit
+   history**, but are not a manual prerequisite.
+3. Wait for the frozen-version card. Freezing constructs an immutable prepared
+   SIP, runs ZIP safety, trusted XSD, submitted-checksum, inventory and reference
+   checks, and retains preparation evidence. A failed operation displays an
+   error instead of a completed version. Expand **Version identity and SHA-256**
+   to inspect its exact identity.
+4. Inspect the external status. When configured, SIP-Validation is queued for
+   the frozen version automatically. **Inspect this version's results** selects
+   that exact artifact in the existing lower SIP-Validation panel. External
+   results remain advisory; queued, unavailable, uncertain or missing results
+   are not passes and do not automatically block arrangement.
+5. When satisfied, select **Use this version for m:n arrangement**. The mapping
+   opens with that exact version selected; this does not save the mapping or
+   authorize a candidate. Use **Download prepared SIP** and **Download
+   METS/PREMIS evidence** as needed.
 
-An edit or checkpoint after freezing makes the older version historical.
-Freeze the successor and repeat downstream mapping and review as required.
-Freezing and its receipt checks do not authorize a candidate or accept it.
+Further editing remains possible. Pending proposals or a later applied edit
+make the old results inapplicable to the current working state. After saving
+changes, freeze and validate a successor before using it for arrangement.
+Earlier snapshots remain available under **Previous frozen versions**, collapsed
+by default, with their own results and downloads. Historical versions cannot
+be handed off as the current input. A later checkpoint also creates a new review
+boundary, even when the XML bytes are unchanged.
+
+Freezing and its checks do not authorize a candidate or imply archival acceptance.
 
 ## Arrange, review and build
 
@@ -254,7 +282,7 @@ unassessed. The shipped policy is not institutionally approved. See the
 | Workbench or login page unavailable | Check that Podman Machine is running on Windows, then use the Windows launcher and its readiness messages. See [local operations](specification.md#local-development-and-checks). |
 | Upload is rejected | Check the selected profile, ZIP size and displayed findings. Do not relabel or upgrade a SIP to bypass validation. |
 | A control is disabled | Check your role, transfer state, pending changes, required reason, current version and whether an operation is still running. |
-| Freeze is disabled | Save or discard proposals, supply a reason, create an applied edit or checkpoint, and check whether the current head is already frozen. |
+| Freeze & validate is disabled | Read the explanation beside the action: wait for an operation, save or discard proposals, supply a snapshot reason, or use the already-frozen current version. An unchanged submission needs no manual edit or checkpoint. |
 | Review or mapping is stale | Reload, select the current frozen input, save the mapping again and obtain a fresh independent review and authorization. |
 | SIP Validator is unavailable or a submission is uncertain | Inspect the artifact status and service configuration; do not treat an error or missing report as a pass. Review the uncertain-submission warning before a re-run. |
 | A change or save reports an error | Read the message and retained history before retrying. Do not assume a failed response means no operation was recorded. |

@@ -34,7 +34,8 @@ test('select frozen metadata for arrangement, independently review exact bytes a
   await editor.getByRole('textbox',{name:'Editing context / reason',exact:true}).fill('Describe the exact metadata selected for independent preparation review.');
   await editor.locator('[data-field-tag="titel"]').getByRole('textbox',{name:'Title',exact:true}).fill('Selected dossier for frozen review');
   await editor.locator('.reference-toolbar').getByRole('button',{name:'Save',exact:true}).click();
-  await editor.getByRole('button',{name:'Freeze working version',exact:true}).click();
+  await editor.locator('.editor-type-tabs').getByRole('button',{name:'Validation',exact:true}).click();
+  await editor.getByRole('button',{name:'Freeze & validate',exact:true}).click();
   await expect(editor.locator('.prepared-version')).toHaveCount(1);
   const prepared=(await get(base)).prepared_inputs[0];
   await page.getByRole('button',{name:'m:n mapping',exact:true}).click();
@@ -66,6 +67,7 @@ test('select frozen metadata for arrangement, independently review exact bytes a
   await mapping.getByRole('combobox',{name:'Lingua',exact:true}).selectOption('en');
   await logout();await login('operator');await page.locator('button.transfer').filter({hasText:title}).click();await page.getByRole('button',{name:'Ingest Packager',exact:true}).click();
   await editor.getByRole('textbox',{name:'Editing context / reason',exact:true}).fill('Successor checkpoint requires a fresh selected-input review.');
+  await editor.locator('.reference-toolbar').getByRole('button',{name:/^Edit history/}).click();
   await editor.getByRole('textbox',{name:'Checkpoint name',exact:true}).fill('Successor after preparation review');await editor.getByRole('button',{name:'Save checkpoint',exact:true}).click();
   await expect(editor.getByRole('textbox',{name:'Checkpoint name',exact:true})).toHaveValue('');
   await page.getByRole('button',{name:'m:n mapping',exact:true}).click();

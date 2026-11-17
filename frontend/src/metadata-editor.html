@@ -21,13 +21,13 @@
           <button (click)="editMenu.open=false;setTool('changes')">{{text('changes')}}</button>
         </div></details>
         <details #viewMenu><summary>{{text('viewMenu')}}</summary><div class="menu">
-          <button (click)="viewMenu.open=false;chooseEditor('overview')">{{text('overview')}}</button><button (click)="viewMenu.open=false;chooseEditor('statistics')">{{text('statistics')}}</button>
+          <button (click)="viewMenu.open=false;chooseEditor('overview')">{{text('overview')}}</button><button (click)="viewMenu.open=false;chooseEditor('statistics')">{{text('statistics')}}</button><button (click)="viewMenu.open=false;validationView()">{{text('validation')}}</button>
           <button (click)="viewMenu.open=false;setNavigator('inventory')">{{text('inventory')}}</button><button (click)="viewMenu.open=false;setTool('changes')">{{text('changes')}}</button>
           <button (click)="viewMenu.open=false;arrange.emit()" [disabled]="busy() || !!pendingCount()">{{text('arrange')}}</button>
         </div></details>
         <details #extrasMenu><summary>{{text('extrasMenu')}}</summary><div class="menu">
           <button (click)="extrasMenu.open=false;downloadWorking()"><img src="/package-turbo/file-text.svg" alt="">{{text('downloadMetadata')}}</button>
-          <button (click)="extrasMenu.open=false;showHistory()"><img src="/package-turbo/clock.svg" alt="">{{text('history')}}</button><button (click)="extrasMenu.open=false;openVersions()">{{text('frozenValidation')}}</button>
+          <button (click)="extrasMenu.open=false;showHistory()"><img src="/package-turbo/clock.svg" alt="">{{text('history')}}</button>
         </div></details>
         <details #helpMenu><summary>{{text('helpMenu')}}</summary><div class="menu"><button (click)="helpMenu.open=false;about.emit()">{{text('about')}}</button><a href="https://github.com/baddonkey/package-turbo-web/blob/661334909b481d42e9a1a4dc736d1393df8ebe92/docs/manual/user-manual.md" target="_blank" rel="noopener">{{text('referenceManual')}}</a><span>{{text('gate')}}</span></div></details>
       </nav>
@@ -45,12 +45,12 @@
         <button (click)="close.emit()" [disabled]="busy()"><img src="/package-turbo/x.svg" alt="">{{text('closePackage')}}</button><i class="toolbar-separator"></i>
         <button (click)="startNote()" [disabled]="busy() || !canEdit() || !!pendingCount()"><img src="/package-turbo/sticky-note.svg" alt="">{{text('newNote')}}</button>
         <button (click)="showHistory()"><img src="/package-turbo/clock.svg" alt="">{{text('history')}} · {{doc.history.length}}</button>
-        <button (click)="openVersions()"><img src="/package-turbo/shield-check.svg" alt="">{{text('frozenValidation')}}</button>
+        <button (click)="validationView()"><img src="/package-turbo/shield-check.svg" alt="">{{text('validation')}}</button>
         <button (click)="action('undo')" [disabled]="busy() || !canEdit() || !doc.state.undo.length || !reason.trim()">{{text('undo')}}</button><button (click)="action('redo')" [disabled]="busy() || !canEdit() || !doc.state.redo.length || !reason.trim()">{{text('redo')}}</button>
       </nav>
     </header>
     @if(error() && !noteDialog.open){<p role="alert" class="error">{{error()}}</p>}@if(message()){<p role="status" class="workspace-message">{{message()}}</p>}
-    <div #editorLayout class="editor-layout" [class.search-mode]="tool()==='search'" [style.--upper-pane-height]="upperPanePercent()+'%'">
+    <div #editorLayout class="editor-layout" [style.--upper-pane-height]="upperPanePercent()+'%'">
       <div class="navigator-pane">
       <nav class="classification-pane" [attr.aria-label]="text('classificationNavigator')"><div class="pane-heading"><h4>{{text('classificationNavigator')}}</h4><button class="icon-button" [disabled]="busy() || !canEdit() || !!pendingCount() || !creationOptions().length" (click)="newObjectAction()" [attr.aria-label]="text('newObject')">+</button></div><div class="object-list" (keydown)="navigateList($event)">
         @for(node of visibleClassification();track node.navigation_key){<ng-container [ngTemplateOutlet]="objectButton" [ngTemplateOutletContext]="{$implicit:node,source:'classification'}"/>}
@@ -76,8 +76,32 @@
             </article>}
           }
           @if(editorView()==='statistics'){<h3>{{text('statistics')}}</h3><table class="summary-table"><tbody><tr><th>{{text('payloadFiles')}}</th><td>{{statistics()?.payload_files ?? '—'}}</td></tr><tr><th>{{text('payloadBytes')}}</th><td>{{statistics()?.payload_bytes | number}}</td></tr>@for(kind of editorKinds;track kind){<tr><th>{{text(kind)}}</th><td>{{countKind(kind)}}</td></tr>}</tbody></table><p>{{text('formatUnassessed')}}</p>}
-          @if(editorView()==='validation'){<h3>{{text('validation')}}</h3><p>{{text('workingValidationScope')}}</p><button (click)="openKostValidation()"><img src="/package-turbo/shield-check.svg" alt="">{{text('sipValidation')}}</button><button (click)="openVersions()">{{text('frozenValidation')}}</button><p>{{text('acceptanceClosed')}}</p>}
-        </div>        <nav class="object-tabs" [class.single-object]="tabs().length<2" [attr.aria-label]="text('openObjects')">@for(node of tabs();track node.id){<div class="object-tab"><button class="secondary" [attr.aria-current]="selected()===node.id ? 'page' : null" [class.active]="selected()===node.id" [attr.data-tab-id]="node.id" (click)="select(node.id)">{{text(node.kind,node.label)}} · {{node.title}}</button><button class="secondary close-tab" [disabled]="tabs().length===1" [attr.aria-label]="text('closeObject')+': '+node.title" (click)="closeObject(node.id)"><img src="/package-turbo/x.svg" alt=""></button></div>}</nav>
+          @if(editorView()==='validation'){
+            <section class="validation-workflow" aria-label="Preparation validation">
+              <h3>{{text('validation')}}</h3><p class="workflow-steps">{{text('validationSteps')}}</p>
+              <section class="working-validation">
+                <h4>{{text('working')}}</h4>
+                <p role="status">{{text(pendingCount() ? 'freezePending' : frozenCurrent() ? 'freezeAlreadyCurrent' : latestFrozen() ? 'workingSinceFreeze' : doc.state.head ? 'workingSaved' : 'workingUnchanged')}}</p>
+                @if(canEdit()){
+                  <label>{{text('freezeReason')}}<input [(ngModel)]="reason" maxlength="2000" [disabled]="busy()"></label>
+                  <button (click)="freeze()" [disabled]="!!freezeBlocked()" aria-describedby="freeze-blocker"><img src="/package-turbo/save.svg" alt="">{{text(busy() ? 'freezeBusy' : 'freeze')}}</button>
+                  <p id="freeze-blocker" class="help">{{freezeBlocked() || text('freezeHelp')}}</p>
+                }
+                @if(pendingCount()){<div class="editor-actions"><button (click)="saveChanges()" [disabled]="!canSave()">{{text('saveChanges')}}</button><button class="secondary" (click)="discardPending()" [disabled]="busy()">{{text('discardProposals')}}</button></div>}
+              </section>
+              @if(latestFrozen();as record){
+                <h4>{{text('latestSnapshot')}}</h4>
+                <ng-container [ngTemplateOutlet]="snapshotCard" [ngTemplateOutletContext]="{$implicit:record}"/>
+              }@else{<p>{{text('noSnapshot')}}</p>}
+              @if(previousFrozen().length){
+                <details class="previous-versions"><summary>{{text('previousSnapshots')}} · {{previousFrozen().length}}</summary>
+                  @for(record of previousFrozen();track record.id){<ng-container [ngTemplateOutlet]="snapshotCard" [ngTemplateOutletContext]="{$implicit:record}"/>}
+                </details>
+              }
+              <p class="help">{{text('validationBoundary')}}</p>
+            </section>
+          }
+        </div>
         <nav class="editor-type-tabs" [attr.aria-label]="text('editorViews')"><button [class.active]="editorView()==='overview'" (click)="chooseEditor('overview')">{{text('overview')}}</button><button [class.active]="editorView()==='statistics'" (click)="chooseEditor('statistics')">{{text('statistics')}}</button><button [class.active]="editorView()==='validation'" (click)="validationView()">{{text('validation')}}</button>@for(kind of editorKinds;track kind){<button [disabled]="!hasKind(kind)" [class.active]="editorView()==='metadata' && selectedObject()?.kind===kind" (click)="chooseEditor('metadata',kind)">{{text(kind)}}</button>}</nav>
       </section>
       <div class="workspace-splitter" role="separator" aria-orientation="horizontal" aria-label="Resize editor and tools" tabindex="0"
@@ -87,7 +111,7 @@
         (pointerup)="endSplitterDrag($event)" (pointercancel)="endSplitterDrag($event)"
         (keydown)="splitterKeydown($event)"><span aria-hidden="true"></span></div>
       <section class="tools-pane" [attr.aria-label]="text('tools')">
-        <nav class="tool-tabs" [attr.aria-label]="text('tools')"><button class="secondary" [attr.aria-pressed]="tool()==='kost'" (click)="openKostValidation()"><img src="/package-turbo/shield-check.svg" alt="">{{text('sipValidation')}}</button><button class="secondary" [attr.aria-pressed]="tool()==='sample'" (click)="setTool('sample')"><img src="/package-turbo/scan-search.svg" alt="">{{text('sampling')}}</button><button class="secondary" [attr.aria-pressed]="tool()==='hierarchy'" (click)="setTool('hierarchy')"><img src="/package-turbo/file-text.svg" alt="">{{text('hierarchyTools')}}</button><button class="secondary" [attr.aria-pressed]="tool()==='notes'" (click)="setTool('notes')"><img src="/package-turbo/sticky-note.svg" alt="">{{text('notes')}} · {{visibleNotes().length}}</button><button class="secondary" (click)="openVersions()"><img src="/package-turbo/shield-check.svg" alt="">{{text('frozenValidation')}}</button><button class="secondary" [attr.aria-pressed]="tool()==='changes'" (click)="setTool('changes')"><img src="/package-turbo/file-text.svg" alt="">{{text('changes')}} · {{pendingCount()}}</button><button class="secondary" [attr.aria-pressed]="tool()==='search'" (click)="setTool('search')"><img src="/package-turbo/search.svg" alt="">{{text('workspaceSearch')}}</button><button class="secondary" [attr.aria-pressed]="tool()==='history'" (click)="showHistory()"><img src="/package-turbo/clock.svg" alt="">{{text('history')}}</button></nav>
+        <nav class="tool-tabs" [attr.aria-label]="text('tools')"><button class="secondary" [attr.aria-pressed]="tool()==='kost'" (click)="openKostValidation()"><img src="/package-turbo/shield-check.svg" alt="">{{text('sipValidation')}}</button><button class="secondary" [attr.aria-pressed]="tool()==='sample'" (click)="setTool('sample')"><img src="/package-turbo/scan-search.svg" alt="">{{text('sampling')}}</button><button class="secondary" [attr.aria-pressed]="tool()==='notes'" (click)="setTool('notes')"><img src="/package-turbo/sticky-note.svg" alt="">{{text('notes')}} · {{visibleNotes().length}}</button><button class="secondary" [attr.aria-pressed]="tool()==='changes'" (click)="setTool('changes')"><img src="/package-turbo/file-text.svg" alt="">{{text('changes')}} · {{pendingCount()}}</button><button class="secondary" [attr.aria-pressed]="tool()==='search'" (click)="setTool('search')"><img src="/package-turbo/search.svg" alt="">{{text('workspaceSearch')}}</button><button class="secondary" [attr.aria-pressed]="tool()==='history'" (click)="showHistory()"><img src="/package-turbo/clock.svg" alt="">{{text('history')}}</button></nav>
         <div class="tool-body">
           <div class="kost-panel-container" [class.active]="tool()==='kost'" [hidden]="tool()!=='kost'"><archive-kost-validation [transferId]="transferId()" [sipId]="sipId()" [revision]="revision()" [sourceSha256]="sourceSha256()" (serviceEnabled)="kostEnabledChange.emit($event)" (statuses)="kostStatusesChange.emit($event)" (reportChanged)="kostReportChange.emit($event)" (fileSelected)="kostFileSelected.emit($event)"/></div>
           @if(tool()==='sample'){
@@ -122,6 +146,7 @@
             @if(hierarchyDraft();as draft){<section class="hierarchy-preview" [attr.aria-label]="text('hierarchyPreview')"><b>{{objectTitle(draft.group.parent_id)}} · {{text(draft.group.child_kind)}}</b><div class="order-comparison"><div><b>{{text('before')}}</b><ol class="before-order">@for(child of draft.group.children;track child.id){<li>{{child.title}}</li>}</ol></div><div><b>{{text('after')}}</b><ol class="after-order">@for(id of draft.after_order;track id){<li>{{objectTitle(id)}}</li>}</ol></div></div><div class="editor-actions"><button (click)="applyReorder()" [disabled]="busy() || !reason.trim()"><img src="/package-turbo/save.svg" alt="">{{text('applyHierarchy')}}</button><button class="secondary" (click)="cancelReorder()" [disabled]="busy()"><img src="/package-turbo/x.svg" alt="">{{text('cancelHierarchy')}}</button></div></section>}
           }
           @if(tool()==='history'){
+            @if(canEdit()){<div class="checkpoint"><label for="metadata-checkpoint">{{text('checkpointName')}}</label><input id="metadata-checkpoint" [(ngModel)]="checkpointName" maxlength="200" [disabled]="busy()"><button (click)="checkpoint()" [disabled]="busy() || pendingCount()>0 || !checkpointName.trim() || !reason.trim()"><img src="/package-turbo/save.svg" alt="">{{text('checkpoint')}}</button></div>}
 
           <h3>{{text('history')}}</h3>
           @if(comparison();as differences){<section class="version-comparison" aria-label="Version comparison">@for(row of differences;track $index){<article><b>{{row.object}} · {{row.field}}</b><dl><dt>{{text('before')}}</dt><dd>{{row.before}}</dd><dt>{{text('after')}}</dt><dd>{{row.after}}</dd></dl></article>}@empty{<p>{{text('noDifferences')}}</p>}</section>}
@@ -145,9 +170,10 @@
             @for(item of proposed();track item.field.id){<article class="proposal"><button class="secondary" (click)="select(item.node.id)">{{item.node.title}} · {{text(item.field.tag,item.field.label)}}</button><dl><dt>{{text('before')}}</dt><dd>{{describe(item.field.values)}}</dd><dt>{{text('after')}}</dt><dd>{{describe(fieldRows(item.field))}}</dd></dl></article>}@empty{<p>{{text('noProposals')}}</p>}
           }
           @if(tool()==='search'){
-            <label>{{text('workspaceSearch')}}<input type="search" [ngModel]="search()" (ngModelChange)="search.set($event)"></label>
+            <div class="metadata-search-toolbar"><input type="search" [attr.aria-label]="text('workspaceSearch')" [placeholder]="text('workspaceSearch')" [ngModel]="search()" (ngModelChange)="search.set($event)">
+              @if(search().trim()){<span class="search-hit-count" role="status">{{searchResults().length}} {{text('searchHits')}}</span>}
+            </div>
             @if(search().trim()){
-              <p class="search-hit-count">{{searchResults().length}} {{text('searchHits')}}</p>
               <div class="metadata-search-scroll"><table class="notes-table metadata-search-table"><thead><tr><th scope="col">{{text('searchObject')}}</th><th scope="col">{{text('searchObjectName')}}</th><th scope="col">{{text('searchMetadata')}}</th><th scope="col">{{text('searchValue')}}</th></tr></thead><tbody>
                 @for(hit of searchResults();track hit.node.id+'-'+hit.field.tag){<tr><td>{{text(hit.node.kind,hit.node.label)}}</td><td><button type="button" class="metadata-search-link" (click)="openSearchResult(hit.node.id)">{{hit.node.title || text(hit.node.kind,hit.node.label)}}</button></td><td>{{text(hit.field.tag,hit.field.label)}}</td><td>{{hit.value}}</td></tr>}@empty{<tr><td colspan="4">{{text('searchNoResults')}}</td></tr>}
               </tbody></table></div>
@@ -157,18 +183,22 @@
       </section>
     </div>
     <details class="unfinished-tools"><summary>{{text('remainingTools')}}</summary><p>{{text('remainingHelp')}}</p></details>
-    @if(canEdit()){<div class="checkpoint" [hidden]="!versionsOpen()"><label for="metadata-checkpoint">{{text('checkpointName')}}</label><input id="metadata-checkpoint" [(ngModel)]="checkpointName" maxlength="200" [disabled]="busy()"><button (click)="checkpoint()" [disabled]="busy() || pendingCount()>0 || !checkpointName.trim() || !reason.trim()"><img src="/package-turbo/save.svg" alt="">{{text('checkpoint')}}</button></div>}
-    <section #frozenTools class="prepared-versions" [hidden]="!versionsOpen()" aria-label="Frozen prepared versions"><button class="close-versions" (click)="versionsOpen.set(false)" [attr.aria-label]="text('closeVersions')"><img src="/package-turbo/x.svg" alt=""></button><h3>{{text('frozenVersions')}}</h3><p class="help">{{text('freezeHelp')}}</p>
-      @if(canEdit()){<button (click)="freeze()" [disabled]="busy() || pendingCount()>0 || !doc.state.head || !reason.trim() || !!frozenCurrent()"><img src="/package-turbo/save.svg" alt="">{{text('freeze')}}</button>@if(!doc.state.head){<p class="help">{{text('freezeNeedsHead')}}</p>}}
-      @for(record of doc.prepared_inputs.slice().reverse();track record.id){
-        <article class="prepared-version" (contextmenu)="preparedContext($event,record)" [attr.data-prepared-id]="record.id"><b>{{record.operation_id===doc.state.head ? text('frozenCurrent') : text('frozenHistorical')}}</b><small>{{record.created | date:'medium'}} · {{record.actor}}</small><p>{{record.reason}}</p><p class="mono">SHA-256 · {{record.sha256}}</p>
-          <p class="help">{{text('frozenGate')}}</p><p>KOST: {{kostStatuses()[record.id] || text('kostNotRun')}}</p>
-          <div class="editor-actions"><button class="secondary" (click)="downloadPrepared(record,'zip')"><img src="/package-turbo/download.svg" alt="">{{text('downloadPrepared')}}</button><button class="secondary" (click)="downloadPrepared(record,'evidence')"><img src="/package-turbo/download.svg" alt="">{{text('evidence')}}</button>
-            <button class="secondary" (click)="openKostValidation(record.id)"><img src="/package-turbo/shield-check.svg" alt="">{{text('sipValidation')}}</button>
-          </div>
-        </article>
-      }
-    </section>
+    <ng-template #snapshotCard let-record>
+      <article class="prepared-version" (contextmenu)="preparedContext($event,record)" [attr.data-prepared-id]="record.id">
+        <b>{{text(record.id===frozenCurrent()?.id && !pendingCount() ? 'frozenCurrent' : 'frozenHistorical')}}</b>
+        <small>{{record.created | date:'medium'}} · {{record.actor}}</small><p>{{record.reason}}</p>
+        <details class="snapshot-identity"><summary>{{text('snapshotIdentity')}}</summary><p class="mono">{{record.id}}</p><p class="mono">SHA-256 · {{record.sha256}}</p></details>
+        <p class="internal-checks">{{text('snapshotChecks')}}</p>
+        <p class="external-status" role="status">{{text('sipValidation')}} · {{externalStatus(record)}}</p>
+        <p class="help">{{text('externalAdvisory')}}</p>
+        <div class="editor-actions">
+          <button class="secondary" (click)="openKostValidation(record.id)">{{text('inspectSnapshot')}}</button>
+          <button class="secondary" (click)="downloadPrepared(record,'zip')">{{text('downloadPrepared')}}</button><button class="secondary" (click)="downloadPrepared(record,'evidence')">{{text('evidence')}}</button>
+          @if(canEdit()){<button (click)="usePrepared(record)" [disabled]="busy() || pendingCount()>0 || record.id!==frozenCurrent()?.id">{{text('useSnapshot')}}</button>}
+        </div>
+        @if(record.id!==frozenCurrent()?.id || pendingCount()){<p class="help">{{text('snapshotStale')}}</p>}
+      </article>
+    </ng-template>
     <footer class="workspace-status"><span>{{text('working')}} · eCH {{doc.profile}} · {{text('pending')}}: {{pendingCount()}}</span><label>{{text('context')}}<input id="metadata-context" [(ngModel)]="reason" [disabled]="busy() || !canEdit()" maxlength="2000"></label><span>{{text('acceptanceClosed')}}</span></footer>
     <dialog #saveReasonDialog class="save-reason-dialog" aria-labelledby="save-reason-title" aria-describedby="save-reason-help">
       <form (ngSubmit)="continueWithReason()">

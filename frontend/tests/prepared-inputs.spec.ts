@@ -1,4 +1,3 @@
-// Genuine local Keycloak and retained SQLite/PostgreSQL. Freeze is not archival approval.
 import {test,expect} from '@playwright/test';
 import {randomUUID,createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
@@ -6,74 +5,150 @@ import {resolve} from 'node:path';
 
 test.use({actionTimeout:20_000});
 
-test('freeze exact working head, recover lost acknowledgement, retain successor history and reader downloads',async({page})=>{
+test('inline validation freezes unchanged input, binds findings and hands the exact snapshot to arrangement',async({page})=>{
   const api=process.env['ARCHIVE_BROWSER_API']||'http://localhost:8000';
-  if(api!=='http://localhost:8000')await page.route('http://localhost:8000/api/**',route=>route.continue({url:route.request().url().replace('http://localhost:8000',api)}));
-  let token='';const errors:string[]=[];
-  page.on('pageerror',error=>errors.push(error.message));
+  let token='';
   page.on('response',async response=>{if(response.url().endsWith('/protocol/openid-connect/token')&&response.ok())token=(await response.json()).access_token;});
-  async function login(user:string){
-    await page.goto('/');await page.getByRole('textbox',{name:'Username or email'}).fill(user);
-    await page.getByRole('textbox',{name:'Password',exact:true}).fill(user+'-local-only');
-    await page.getByRole('button',{name:'Sign In',exact:true}).click();
-    await expect(page.locator('.identity')).toHaveText(user);await expect(page.getByRole('button',{name:'Refresh',exact:true})).toBeEnabled();
-  }
-  async function get(path:string){const response=await fetch(api+path,{headers:{Authorization:'Bearer '+token}});expect(response.ok).toBeTruthy();return response.json();}
-  await login('operator');const title='Frozen preparation '+randomUUID();
-  await page.getByRole('textbox',{name:'New transfer title'}).fill(title);await page.getByRole('button',{name:'Create',exact:true}).click();
+  await page.goto('/');
+  await page.getByRole('textbox',{name:'Username or email'}).fill('operator');
+  await page.getByRole('textbox',{name:'Password',exact:true}).fill('operator-local-only');
+  await page.getByRole('button',{name:'Sign In',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Refresh',exact:true})).toBeEnabled();
+  const title='Validation handoff '+randomUUID();
+  await page.getByRole('textbox',{name:'New transfer title'}).fill(title);
+  await page.getByRole('button',{name:'Create',exact:true}).click();
   await page.locator('input[type=file]').first().setInputFiles(resolve('..','fixtures','reference-1.3.zip'));
-  await page.getByRole('button',{name:'Inspect & add SIP'}).click();await expect(page.getByText('Internal checks passed',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Inspect & add SIP'}).click();
+  await expect(page.getByText('Internal checks passed',{exact:true})).toBeVisible();
+  async function get(path:string){const response=await fetch(api+path,{headers:{Authorization:'Bearer '+token}});expect(response.ok).toBeTruthy();return response.json();}
   const transfer=(await get('/api/transfers')).find((t:{title:string})=>t.title===title);
   const sip=transfer.sips[0],base='/api/transfers/'+transfer.id+'/sips/'+sip.id;
   await page.getByRole('button',{name:'Open Ingest Packager',exact:true}).click();
   const editor=page.getByRole('region',{name:'Versioned metadata editor'});
-  const freeze=editor.getByRole('button',{name:'Freeze working version',exact:true});
+  const workflow=editor.getByRole('region',{name:'Preparation validation'});
+  await editor.locator('.editor-type-tabs').getByRole('button',{name:'Validation',exact:true}).click();
+  await expect(workflow).toContainText('Unchanged submission; ready to freeze without an edit.');
+  await expect(editor.locator('.prepared-versions')).toHaveCount(0);
+  const freeze=workflow.getByRole('button',{name:'Freeze & validate',exact:true});
   await expect(freeze).toBeDisabled();
-  await editor.getByRole('textbox',{name:'Editing context / reason',exact:true}).fill('Freeze described submission for independent review.');
-  const organisation=editor.getByRole('textbox',{name:'Submitting organisation',exact:true});
-  await organisation.fill('Frozen submitting organisation');await expect(freeze).toBeDisabled();
-  await editor.locator('.reference-toolbar').getByRole('button',{name:'Save',exact:true}).click();
+  await expect(workflow).toContainText('Enter a reason for this snapshot.');
+  await workflow.getByRole('textbox',{name:'Snapshot reason',exact:true}).fill('Retain unchanged submission for arrangement.');
   await expect(freeze).toBeEnabled();
-  await page.route('http://localhost:8000'+base+'/prepared-inputs',async route=>{
-    const response=await route.fetch({url:api+base+'/prepared-inputs'});expect(response.ok()).toBeTruthy();await route.abort('failed');
+  await page.route('**'+base+'/prepared-inputs',route=>route.fulfill({status:422,json:{detail:'Internal package checks failed for test'}}),{times:1});
+  await freeze.click();await expect(editor.getByRole('alert')).toContainText('Internal package checks failed for test');
+  await expect(workflow.locator('.prepared-version')).toHaveCount(0);
+  await page.route('**'+base+'/prepared-inputs',async route=>{
+    const response=await route.fetch();expect(response.ok()).toBeTruthy();await route.abort('failed');
   },{times:1});
-  await freeze.click();await expect(editor.getByRole('alert')).toContainText('Failed to fetch');
-  const repeated=page.waitForResponse(r=>r.url().endsWith(base+'/prepared-inputs')&&r.ok());
-  await freeze.click();const result=await (await repeated).json();expect(result.replayed).toBeTruthy();const first=result.prepared_input;
+  await freeze.click();
+  await expect(editor.getByRole('alert')).toContainText('Failed to fetch');
+  await expect(workflow.locator('.prepared-version')).toHaveCount(0);
+  const replay=page.waitForResponse(r=>r.url().endsWith(base+'/prepared-inputs')&&r.ok());
+  await freeze.click();
+  const result=await (await replay).json();expect(result.replayed).toBeTruthy();
+  const first=result.prepared_input;
+  const card=workflow.locator('[data-prepared-id="'+first.id+'"]');
+  await expect(card).toContainText('Internal checks passed:');
   await expect(freeze).toBeDisabled();
-  const frozen=editor.getByRole('region',{name:'Frozen prepared versions'});
-  const firstCard=frozen.locator('[data-prepared-id="'+first.id+'"]');
-  await expect(firstCard).toContainText('Matches the applied working head');
-  await expect(firstCard).toContainText('Receipt checks apply to this frozen input');
+  const validation=editor.getByRole('region',{name:'SIP-Validation',exact:true});
+  await expect(validation.getByRole('combobox',{name:'Validated artifact'})).toHaveValue(first.id);
   for(const [name,digest] of [['Download prepared SIP',first.sha256],['Download METS/PREMIS evidence',first.evidence_sha256]]){
-    const download=page.waitForEvent('download');await firstCard.getByRole('button',{name,exact:true}).click();
+    const download=page.waitForEvent('download');await card.getByRole('button',{name,exact:true}).click();
     expect(createHash('sha256').update(readFileSync((await (await download).path())!)).digest('hex')).toBe(digest);
   }
-  await editor.getByRole('textbox',{name:'Checkpoint name',exact:true}).fill('Same XML, new review boundary');
-  await editor.getByRole('button',{name:'Save checkpoint',exact:true}).click();
-  await expect(freeze).toBeEnabled();await expect(firstCard).toContainText('Historical prepared version');
-  await freeze.click();await expect(frozen.locator('.prepared-version')).toHaveCount(2);
-  let doc=await get(base+'/preparation');const second=doc.prepared_inputs[1];
-  expect(second.sha256).toBe(first.sha256);expect(second.preparation_sha256).not.toBe(first.preparation_sha256);expect(second.predecessor_id).toBe(first.id);
-  await organisation.fill('Successor needs a fresh freeze');await expect(freeze).toBeDisabled();
-  await editor.locator('.reference-toolbar').getByRole('button',{name:'Save',exact:true}).click();
-  await expect(freeze).toBeEnabled();await expect(frozen.getByText('Historical prepared version',{exact:true})).toHaveCount(2);
-  await editor.getByRole('combobox',{name:'Language',exact:true}).selectOption('de');
-  await expect(editor.getByRole('button',{name:'Arbeitsversion einfrieren',exact:true})).toBeVisible();
-  await editor.getByRole('combobox',{name:'Sprache',exact:true}).selectOption('fr');
-  await expect(editor.getByRole('button',{name:'Figer la version de travail',exact:true})).toBeVisible();
-  await editor.getByRole('combobox',{name:'Langue',exact:true}).selectOption('it');
-  await expect(editor.getByRole('button',{name:'Congela versione di lavoro',exact:true})).toBeVisible();
-  await editor.getByRole('combobox',{name:'Lingua',exact:true}).selectOption('en');
-  const body=await get('/api/transfers/'+transfer.id);expect(body.sips[0]).toEqual(sip);expect(body.approval).toBeUndefined();
-  await page.reload();await page.locator('button.transfer').filter({hasText:title}).click();await page.getByRole('button',{name:'Ingest Packager',exact:true}).click();
-  await expect(frozen.locator('.prepared-version')).toHaveCount(2);await expect(organisation).toHaveValue('Successor needs a fresh freeze');
-  await page.getByRole('button',{name:'Sign out',exact:true}).click();await expect(page.getByRole('textbox',{name:'Username or email'})).toBeVisible();
-  await login('auditor');await page.locator('button.transfer').filter({hasText:title}).click();await page.getByRole('button',{name:'Ingest Packager',exact:true}).click();
-  await expect(freeze).toHaveCount(0);await expect(frozen.locator('.prepared-version')).toHaveCount(2);
-  const download=page.waitForEvent('download');await firstCard.getByRole('button',{name:'Download prepared SIP',exact:true}).click();
-  expect(createHash('sha256').update(readFileSync((await (await download).path())!)).digest('hex')).toBe(first.sha256);
+  const doc=await get(base+'/preparation');
+  expect(doc.history).toHaveLength(1);expect(doc.history[0].kind).toBe('checkpoint');
+  expect(doc.prepared_inputs).toHaveLength(1);
+  let serviceState='disabled';
+  await page.route('**'+base+'/kost-validations',async route=>{
+    if(serviceState==='unavailable'){await route.fulfill({status:503,json:{detail:'Validator unavailable for test'}});return;}
+    await route.fulfill({json:{enabled:serviceState!=='disabled',advisory:true,targets:[
+      {target_id:first.id,prepared_id:first.id,label:'Frozen test version',input_sha256:first.sha256,
+        latest:serviceState==='disabled'?null:{id:randomUUID(),state:serviceState==='uncertain'?'SUBMISSION_UNKNOWN':serviceState==='invalid'?'COMPLETE':'QUEUED',
+          result:serviceState==='invalid'?'invalid':null,errors:[],created:Date.now()/1000,report_sha256:null}},
+    ]}});
+  });
+  const inspect=card.getByRole('button',{name:'Inspect this version’s results',exact:true});
+  await inspect.click();await expect(card.locator('.external-status')).toContainText('Service not configured; not assessed');
+  serviceState='queued';await inspect.click();await expect(card.locator('.external-status')).toContainText('Queued');
+  serviceState='invalid';await inspect.click();await expect(card.locator('.external-status')).toContainText('Invalid');
+  serviceState='uncertain';await inspect.click();await expect(card.locator('.external-status')).toContainText('Submission uncertain');
+  serviceState='unavailable';await inspect.click();await expect(card.locator('.external-status')).toContainText('Status unavailable');
+  await expect(card.getByRole('button',{name:'Use this version for m:n arrangement',exact:true})).toBeEnabled();
+  serviceState='disabled';await inspect.click();await expect(card.locator('.external-status')).toContainText('not assessed');
+  await card.getByRole('button',{name:'Use this version for m:n arrangement',exact:true}).click();
+  const mapping=page.getByRole('region',{name:'Frozen input arrangement and review'});
+  await expect(mapping.locator('[data-input-sip="'+sip.id+'"]')).toHaveValue(first.id);
+  await expect(mapping.locator('.selected-binding')).toContainText(first.sha256);
+  await mapping.getByRole('textbox',{name:'Reason for restructuring',exact:true}).fill('Use selected frozen version; external results remain advisory.');
+  await mapping.getByRole('button',{name:'Save frozen-input mapping',exact:true}).click();
+  await expect(mapping.getByRole('button',{name:'Record independent preparation review',exact:true})).toBeVisible();
+  await page.reload();await page.locator('button.transfer').filter({hasText:title}).click();
+  await page.getByRole('button',{name:'m:n mapping',exact:true}).click();
+  await expect(mapping.locator('[data-input-sip="'+sip.id+'"]')).toHaveValue(first.id);
+  const retained=await get('/api/transfers/'+transfer.id);
+  expect(retained.plan.inputs[0].prepared_id).toBe(first.id);expect(retained.approval).toBeUndefined();expect(retained.sips[0]).toEqual(sip);
+});
+
+test('working changes require a successor and historical snapshots stay inspectable without enabling handoff',async({page})=>{
+  await page.goto('/');
+  await page.getByRole('textbox',{name:'Username or email'}).fill('operator');
+  await page.getByRole('textbox',{name:'Password',exact:true}).fill('operator-local-only');
+  await page.getByRole('button',{name:'Sign In',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Refresh',exact:true})).toBeEnabled();
+  const title='Successor validation '+randomUUID();
+  await page.getByRole('textbox',{name:'New transfer title'}).fill(title);await page.getByRole('button',{name:'Create',exact:true}).click();
+  await page.locator('input[type=file]').first().setInputFiles(resolve('..','fixtures','reference-1.3.zip'));
+  await page.getByRole('button',{name:'Inspect & add SIP'}).click();await expect(page.getByText('Internal checks passed',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Open Ingest Packager',exact:true}).click();
+  const editor=page.getByRole('region',{name:'Versioned metadata editor'});
+  const workflow=editor.getByRole('region',{name:'Preparation validation'});
+  const openValidation=editor.locator('.editor-type-tabs').getByRole('button',{name:'Validation',exact:true});
+  const openOverview=editor.locator('.editor-type-tabs').getByRole('button',{name:'Overview',exact:true});
+  await openValidation.click();await workflow.getByRole('textbox',{name:'Snapshot reason',exact:true}).fill('Retain sample version.');
+  const freeze=workflow.getByRole('button',{name:'Freeze & validate',exact:true});
+  await freeze.click();await expect(workflow.locator('.prepared-version')).toHaveCount(1);
+  await openOverview.click();
+  await editor.getByRole('textbox',{name:'Submitting organisation',exact:true}).fill('Prepared sample organisation');
+  await openValidation.click();
+  await expect(freeze).toBeDisabled();await expect(workflow).toContainText('Save or discard pending proposals first.');
+  await expect(workflow.getByRole('button',{name:'Use this version for m:n arrangement',exact:true})).toBeDisabled();
+  await workflow.getByRole('button',{name:'Save',exact:true}).click();
+  await expect(freeze).toBeEnabled();
+  await expect(workflow).toContainText('Saved changes since the last snapshot.');
+  await freeze.click();
+  await expect(workflow.locator('.prepared-version')).toHaveCount(2);
+  await expect(workflow.locator('.previous-versions')).not.toHaveAttribute('open','');
+  await workflow.locator('.previous-versions>summary').click();
+  await expect(workflow.getByText('Previous working state',{exact:true})).toBeVisible();
+  const historical=workflow.locator('.previous-versions .prepared-version');
+  await expect(historical.getByRole('button',{name:'Use this version for m:n arrangement',exact:true})).toBeDisabled();
+  await historical.getByRole('button',{name:'Inspect this version’s results',exact:true}).click();
+  const historicalId=await historical.getAttribute('data-prepared-id');
+  await expect(editor.getByRole('combobox',{name:'Validated artifact'})).toHaveValue(historicalId!);
+  await expect(workflow).toContainText('Results belong only to this snapshot.');
+  await workflow.locator('.previous-versions>summary').click();
+  await workflow.locator('.prepared-version').first().getByRole('button',{name:'Inspect this version’s results',exact:true}).click();
+  await page.setViewportSize({width:1600,height:1600});
+  const splitter=editor.getByRole('separator',{name:'Resize editor and tools',exact:true});
+  await splitter.press('Shift+ArrowDown');await splitter.press('Shift+ArrowDown');await splitter.press('Shift+ArrowDown');await splitter.press('Shift+ArrowDown');
+  await workflow.locator('.snapshot-identity>summary').first().click();
+  await workflow.evaluate(element=>element.parentElement?.scrollTo(0,0));
+  if(process.env['ARCHIVE_UPDATE_DOCS']==='true')
+    await editor.screenshot({path:resolve('..','docs','images','frozen-version.png')});
   await page.setViewportSize({width:390,height:844});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
-  doc=await get(base+'/preparation');expect(doc.prepared_inputs).toHaveLength(2);expect(errors).toEqual([]);
+  await page.setViewportSize({width:1280,height:900});
+  await page.getByRole('button',{name:'Sign out',exact:true}).click();
+  await page.getByRole('textbox',{name:'Username or email'}).fill('auditor');
+  await page.getByRole('textbox',{name:'Password',exact:true}).fill('auditor-local-only');
+  await page.getByRole('button',{name:'Sign In',exact:true}).click();
+  await page.setViewportSize({width:1280,height:900});
+  await page.locator('button.transfer').filter({hasText:title}).click();
+  await page.getByRole('button',{name:'Ingest Packager',exact:true}).click();
+  await editor.locator('.reference-toolbar').getByRole('button',{name:'Validation',exact:true}).click();
+  await expect(freeze).toHaveCount(0);
+  await expect(workflow.getByRole('button',{name:'Use this version for m:n arrangement',exact:true})).toHaveCount(0);
+  const download=page.waitForEvent('download');await workflow.getByRole('button',{name:'Download prepared SIP',exact:true}).click();
+  expect((await download).suggestedFilename()).toMatch(/^prepared-/);
 });
