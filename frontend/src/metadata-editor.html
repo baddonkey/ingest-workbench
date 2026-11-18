@@ -191,12 +191,6 @@
               <div class="editor-actions"><button class="secondary" (click)="previewCreation()" [disabled]="busy() || !reason.trim()">{{text('previewCreation')}}</button><button class="secondary" (click)="cancelCreation()" [disabled]="busy()"><img src="/package-turbo/x.svg" alt="">{{text('discardCreation')}}</button></div>
               @if(draft.preview;as preview){<section aria-label="Creation preview"><h4>{{text('creationPreview')}}</h4><ol>@for(object of preview.objects;track object.id){<li>{{object.title}} · {{object.source_id}}</li>}</ol>@for(field of draft.option.fields;track field.tag){@if(draft.values[field.tag].length){<p><b>{{text(field.tag,field.label)}}</b> · {{describe(draft.values[field.tag])}}</p>}}<button (click)="applyCreation()" [disabled]="busy() || !reason.trim()"><img src="/package-turbo/save.svg" alt="">{{text('applyCreation')}}</button></section>}
             </section>}
-            <h3>{{text('objectOrder')}}</h3>@if(!hierarchyDraft()){<p class="help">{{text('hierarchyScope')}}</p>
-            @if(selectedGroup();as group){<p>{{objectTitle(group.parent_id)}} · {{text(group.child_kind)}}</p>
-              @if(canEdit()){<div class="editor-actions"><button class="secondary" (click)="stageReorder(-1)" [disabled]="!canReorder(-1)">{{text('previewUp')}}</button><button class="secondary" (click)="stageReorder(1)" [disabled]="!canReorder(1)">{{text('previewDown')}}</button></div>}
-              <ol class="current-order">@for(child of group.children;track child.id){<li [class.selected-order]="child.id===selected()">{{child.title}}</li>}</ol>
-            }@else{<p>{{text('noReorderGroup')}}</p>}}
-            @if(hierarchyDraft();as draft){<section class="hierarchy-preview" [attr.aria-label]="text('hierarchyPreview')"><b>{{objectTitle(draft.group.parent_id)}} · {{text(draft.group.child_kind)}}</b><div class="order-comparison"><div><b>{{text('before')}}</b><ol class="before-order">@for(child of draft.group.children;track child.id){<li>{{child.title}}</li>}</ol></div><div><b>{{text('after')}}</b><ol class="after-order">@for(id of draft.after_order;track id){<li>{{objectTitle(id)}}</li>}</ol></div></div><div class="editor-actions"><button (click)="applyReorder()" [disabled]="busy() || !reason.trim()"><img src="/package-turbo/save.svg" alt="">{{text('applyHierarchy')}}</button><button class="secondary" (click)="cancelReorder()" [disabled]="busy()"><img src="/package-turbo/x.svg" alt="">{{text('cancelHierarchy')}}</button></div></section>}
           }
           @if(tool()==='history'){
             @if(canEdit()){<div class="checkpoint"><label for="metadata-checkpoint">{{text('checkpointName')}}</label><input id="metadata-checkpoint" [(ngModel)]="checkpointName" maxlength="200" [disabled]="busy()"><button (click)="checkpoint()" [disabled]="busy() || pendingCount()>0 || !checkpointName.trim() || !reason.trim()"><img src="/package-turbo/save.svg" alt="">{{text('checkpoint')}}</button></div>}
@@ -204,7 +198,13 @@
           <h3>{{text('history')}}</h3>
           @if(comparison();as differences){<section class="version-comparison" aria-label="Version comparison">@for(row of differences;track $index){<article><b>{{row.object}} · {{row.field}}</b><dl><dt>{{text('before')}}</dt><dd>{{row.before}}</dd><dt>{{text('after')}}</dt><dd>{{row.after}}</dd></dl></article>}@empty{<p>{{text('noDifferences')}}</p>}</section>}
           <div class="history-table-scroll"><table class="history-table" [attr.aria-label]="text('history')"><thead><tr><th scope="col">{{text('historyNumber')}}</th><th scope="col">{{text('historyTime')}}</th><th scope="col">{{text('historyEvent')}}</th><th scope="col">{{text('historyOldValue')}}</th><th scope="col">{{text('historyNewValue')}}</th><th scope="col">{{text('historyActor')}}</th><th scope="col">{{text('status')}}</th><th scope="col">{{text('historyChecksum')}}</th></tr></thead><tbody>
-          @for(operation of doc.history.slice().reverse();track operation.id;let index=$index){<tr class="metadata-operation" tabindex="0" [attr.data-operation-id]="operation.id" (contextmenu)="historyContext($event,operation)" (keydown)="historyContextKey($event,operation)"><td>{{doc.history.length-index}}</td><td>{{operation.created | date:'dd.MM.yyyy HH:mm:ss'}}</td><td><button class="history-event-link" (click)="openHistory(operation)">{{historyLabel(operation)}}</button></td><td class="history-old-value">{{historyValue(operation,'before')}}</td><td class="history-new-value">{{historyValue(operation,'after')}}</td><td [title]="operation.actor">{{actorLabel(operation.actor)}}</td><td>{{text('historyRecorded')}}</td><td class="history-digest" [title]="operation.evidence_sha256">{{operation.evidence_sha256}}</td></tr>}@empty{<tr><td colspan="8">{{text('noHistory')}}</td></tr>}
+          @for(operation of doc.history.slice().reverse();track operation.id;let index=$index){<tr class="metadata-operation" tabindex="0" [attr.data-operation-id]="operation.id" (contextmenu)="historyContext($event,operation)" (keydown)="historyContextKey($event,operation)">
+            <td>{{doc.history.length-index}}</td><td>{{operation.created | date:'dd.MM.yyyy HH:mm:ss'}}</td>
+            <td><button class="history-event-link" (click)="openHistory(operation)">{{historyLabel(operation)}}</button></td>
+            @if(historyOrder(operation);as order){<td colspan="2" class="history-order-summary">{{order.scope}} · {{order.summary}}</td>}
+            @else{<td class="history-old-value">{{historyValue(operation,'before')}}</td><td class="history-new-value">{{historyValue(operation,'after')}}</td>}
+            <td [title]="operation.actor">{{actorLabel(operation.actor)}}</td><td>{{text('historyRecorded')}}</td><td class="history-digest" [title]="operation.evidence_sha256">{{operation.evidence_sha256}}</td>
+          </tr>}@empty{<tr><td colspan="8">{{text('noHistory')}}</td></tr>}
           </tbody></table></div>
           }
           @if(tool()==='notes'){
@@ -215,7 +215,6 @@
             </tbody></table></div>
           }
           @if(tool()==='changes'){
-            @if(hierarchyDraft();as draft){<article class="proposal"><button class="secondary" (click)="setTool('hierarchy')">{{objectTitle(draft.group.parent_id)}} · {{text('objectOrder')}}</button><p>{{orderText(draft.group.children,draft.after_order)}}</p></article>}
             @if(creationDraft();as draft){<article class="proposal"><button class="secondary" (click)="setTool('hierarchy')">{{objectTitle(draft.option.parent_id)}} · {{text('newObject')}}</button><p>{{text(draft.option.child_kind)}} · {{draft.count}}</p></article>}
 
             @if(noteDraft();as draft){<article class="proposal"><button class="secondary" (click)="select(draft.node_id);setTool('notes')">{{objectTitle(draft.node_id)}} · {{text('notes')}}</button><p>{{draft.text}}</p></article>}
@@ -298,7 +297,13 @@
         @if(operation.changes.sample || operation.changes.sample_review){<dl>@if(operation.changes.sample_review){<dt>{{text('before')}}</dt><dd>{{historyValue(operation,'before')}}</dd>}<dt>{{text('after')}}</dt><dd>{{historyValue(operation,'after')}}</dd></dl>}
         @if(operation.kind==='structure-create'){<p>{{text(operation.changes.child_kind || '')}}</p><ul>@for(object of operation.changes.objects;track object.id){<li><button class="secondary" (click)="historyDialog.close();select(object.id)">{{object.title}}</button> · {{object.source_id}}</li>}</ul>}
         @if(operation.changes.note_id){<dl><dt>{{text('before')}}</dt><dd>{{operation.changes.note_before?.text || text('empty')}} · {{operation.changes.note_before ? text(operation.changes.note_before!.purpose) : ''}}</dd><dt>{{text('after')}}</dt><dd>{{operation.changes.note_after?.text || text('empty')}} · {{operation.changes.note_after ? text(operation.changes.note_after!.purpose) : ''}}</dd></dl>}
-        @if(operation.changes.before_order){<dl><dt>{{text('before')}}</dt><dd>{{orderText(operation.changes.objects,operation.changes.before_order)}}</dd><dt>{{text('after')}}</dt><dd>{{orderText(operation.changes.objects,operation.changes.after_order)}}</dd></dl>}
+        @if(historyOrder(operation);as order){
+          <p>{{order.scope}} · {{order.summary}}</p>
+          <details class="history-order-details"><summary>{{text('orderDetails')}}</summary>
+            <dl><dt>{{text('before')}}</dt><dd><ol>@for(title of order.before;track $index){<li>{{title}}</li>}</ol></dd>
+            <dt>{{text('after')}}</dt><dd><ol>@for(title of order.after;track $index){<li>{{title}}</li>}</ol></dd></dl>
+          </details>
+        }
         @if(operation.changes.content){<dl><dt>{{text('before')}}</dt><dd>{{historyValue(operation,'before')}}</dd><dt>{{text('after')}}</dt><dd>{{historyValue(operation,'after')}}</dd></dl><button (click)="download(operation,'archive')">{{text('downloadWorkingSip')}}</button>}
         <div class="editor-actions"><button class="secondary" (click)="historyDialog.close();compare(operation)">{{text('compare')}}</button><button class="secondary" (click)="download(operation,'evidence')"><img src="/package-turbo/download.svg" alt="">{{text('evidence')}}</button><button class="secondary" (click)="download(operation,'metadata')">{{text('metadata')}}</button>@if(canEdit()){<button class="secondary" (click)="historyDialog.close();action('restore',operation.id)" [disabled]="busy() || !reason.trim() || operation.id===doc.state.head">{{text('restore')}}</button>}</div>
       }
@@ -381,4 +386,21 @@
   <archive-context-menu [state]="contextMenu()" (closed)="contextMenu.set(null)"/>
 </section>
 
-<ng-template #objectButton let-node let-columns="columns" let-source="source"><div class="tree-row" [attr.data-navigation-key]="node.navigation_key" [class.with-columns]="columns" [class.selected]="node.id===selected()" (contextmenu)="nodeContext($event,node)"><div class="tree-name" [style.padding-inline-start.px]="4+navigatorDepth(node)*20">@if(hasChildren(node)){<button class="disclosure secondary" [attr.aria-label]="text('toggleBranch')+': '+node.title" [attr.aria-expanded]="!collapsed().has(node.navigation_key)" (click)="toggleNode(node.navigation_key)">{{collapsed().has(node.navigation_key) ? '▸' : '▾'}}</button>}@else{<span class="disclosure"></span>}<button class="metadata-object" [attr.data-object-id]="node.id" [class.active]="node.id===selected()" [class.ancestor]="parents().get(selected())?.includes(node.id)" [attr.aria-current]="node.id===selected() ? 'true' : null" aria-haspopup="menu" (keydown)="nodeContextKey($event,node)" (click)="select(node.id,source,node.navigation_key)"><span class="node-badge" [attr.data-kind]="node.kind" aria-hidden="true">{{badge(node.kind)}}</span><span class="node-label">{{navigatorTitle(node)}}</span></button><button class="context-trigger" (click)="nodeContext($event,node)" [attr.aria-label]="node.title+': '+text('menu')" aria-haspopup="menu"><img src="/package-turbo/ellipsis-vertical.svg" alt=""></button></div>@if(columns){<span>{{fieldText(node,'aktenzeichen')}}</span><span>{{timespan(node)}}</span><span>{{fieldText(node,'erscheinungsform')}}</span>}</div></ng-template>
+<ng-template #objectButton let-node let-columns="columns" let-source="source">
+  <div class="tree-row" [attr.data-navigation-key]="node.navigation_key" [class.with-columns]="columns" [class.selected]="node.id===selected()"
+    [class.order-drop-before]="reorderDrop()?.key===node.navigation_key && !reorderDrop()?.after"
+    [class.order-drop-after]="reorderDrop()?.key===node.navigation_key && reorderDrop()?.after"
+    (contextmenu)="nodeContext($event,node)" (dragover)="orderDragOver($event,node,source)" (dragleave)="orderDragLeave($event,node)" (drop)="finishOrderDrop($event,node,source)">
+    <div class="tree-name" [style.padding-inline-start.px]="4+navigatorDepth(node)*20">
+      @if(hasChildren(node)){<button class="disclosure secondary" [attr.aria-label]="text('toggleBranch')+': '+node.title" [attr.aria-expanded]="!collapsed().has(node.navigation_key)" (click)="toggleNode(node.navigation_key)">{{collapsed().has(node.navigation_key) ? '▸' : '▾'}}</button>}@else{<span class="disclosure"></span>}
+      <button class="metadata-object" [attr.data-object-id]="node.id" [class.active]="node.id===selected()" [class.ancestor]="parents().get(selected())?.includes(node.id)" [attr.aria-current]="node.id===selected() ? 'true' : null" aria-haspopup="menu"
+        [draggable]="canDragOrder(node.id)" [attr.title]="canDragOrder(node.id) ? text('dragSibling') : null"
+        (dragstart)="startOrderDrag($event,node,source)" (dragend)="endOrderDrag()"
+        (keydown)="nodeContextKey($event,node)" (click)="select(node.id,source,node.navigation_key)">
+        <span class="node-badge" [attr.data-kind]="node.kind" aria-hidden="true">{{badge(node.kind)}}</span><span class="node-label">{{navigatorTitle(node)}}</span>
+      </button>
+      <button class="context-trigger" (click)="nodeContext($event,node)" [attr.aria-label]="node.title+': '+text('menu')" aria-haspopup="menu"><img src="/package-turbo/ellipsis-vertical.svg" alt=""></button>
+    </div>
+    @if(columns){<span>{{fieldText(node,'aktenzeichen')}}</span><span>{{timespan(node)}}</span><span>{{fieldText(node,'erscheinungsform')}}</span>}
+  </div>
+</ng-template>

@@ -124,6 +124,37 @@ export class MetadataEditor implements OnChanges,OnDestroy {
   continueWithReason(){if(this.busy() || !this.canEdit() || !this.reason.trim())return;const resume=this.resumeWithReason;this.resumeWithReason=null;this.saveReasonDialog()?.nativeElement.close();void resume?.();}
   historyDialog=viewChild<ElementRef<HTMLDialogElement>>('historyDialog');
   historyOperation=signal<MetadataOperation|null>(null);
+  historyOrder(operation:MetadataOperation){
+    const reverse=operation.kind==='undo';
+    const source=reverse || operation.kind==='redo'
+      ?this.document()?.history.find(item=>item.id===operation.changes.related_operation_id)
+      :operation;
+    const changes=source?.changes;
+    if(source?.kind!=='structure-reorder' || !changes?.before_order || !changes.after_order)return null;
+    const [before,after]=reverse?[changes.after_order,changes.before_order]:[changes.before_order,changes.after_order];
+    const titles=new Map(changes.objects?.map(object=>[object.id,object.title]));
+    const title=(id:string)=>titles.get(id)||id;
+    const changed=before.flatMap((id,index)=>id===after[index]?[]:[index]);
+    const first=changed[0],last=changed.at(-1)!;
+    const format=(key:string,...args:(string|number)[])=>this.text(key).replace(/\{(\d+)\}/g,(_,index)=>String(args[Number(index)]));
+    let summary=format('orderPositionsChanged',changed.length);
+    if(changed.length===2 && before[first]===after[last] && before[last]===after[first]){
+      summary=format('orderSwapped',title(before[first]),title(before[last]),first+1,last+1);
+    }else if(changed.length>2){
+      // A single move must take an object from one end of the changed range to the other.
+      const moves=[[first,last],[last,first]].filter(([from,to])=>{
+        const reordered=[...before];
+        reordered.splice(to,0,...reordered.splice(from,1));
+        return reordered.every((id,index)=>id===after[index]);
+      });
+      if(moves.length===1){
+        const [from,to]=moves[0];
+        summary=format('orderMoved',title(before[from]),from+1,to+1);
+      }
+    }
+    const scope=[changes.parent_id?this.objectTitle(changes.parent_id):'',changes.child_kind?this.text(changes.child_kind):''].filter(Boolean).join(' · ');
+    return {scope,summary,before:before.map(title),after:after.map(title)};
+  }
   historyValue(operation:MetadataOperation,side:'before'|'after',depth=0):string{
     const changes=operation.changes,rows=changes[side];
     if(changes.content){const change=changes.content;return side==='before'
@@ -145,8 +176,6 @@ export class MetadataEditor implements OnChanges,OnDestroy {
     }
     if(rows!==undefined)return rows.length?this.describe(rows)||this.text('historyEmptyValue'):this.text('empty');
     if(changes.note_id){const note=side==='before'?changes.note_before:changes.note_after;return note?note.text+' · '+this.text(note.purpose):this.text('empty');}
-    const order=side==='before'?changes.before_order:changes.after_order;
-    if(order!==undefined)return this.orderText(changes.objects,order)||this.text('empty');
     if(operation.kind==='structure-create')return side==='before'?this.text('empty'):(changes.objects||[]).map(object=>object.title+' · '+object.source_id).join('\n')||this.text('empty');
     const history=this.document()?.history||[];
     if((operation.kind==='undo'||operation.kind==='redo') && depth<history.length){
@@ -194,12 +223,12 @@ export class MetadataEditor implements OnChanges,OnDestroy {
     const commands:ContextCommand[]=[{label:this.text('showInEditor'),run:()=>this.select(node.id)},{label:this.text('copyName'),icon:'copy',run:()=>void this.copyValue(node.title)},{label:this.text('copyIdentifier'),icon:'copy',run:()=>void this.copyValue(node.source_id||node.id)}];
     for(const option of this.document()?.creation_options.filter(o=>o.parent_id===node.id)||[])commands.push({label:this.text('newObject')+' · '+this.text(option.child_kind),icon:'file-plus',disabled:blocked,run:()=>{this.select(node.id);this.startCreation(option);}});
     const title=node.fields.find(f=>f.tag==='titel'||f.tag==='name');
-    const group=this.document()?.reorder_groups.find(g=>g.children.some(c=>c.id===node.id)),index=group?.children.findIndex(c=>c.id===node.id)??-1;
+    const group=this.reorderGroups().get(node.id),index=group?.children.findIndex(c=>c.id===node.id)??-1;
     const payload=!!this.document()?.content_files?.[node.id];
     if(payload)commands.push({label:this.text('contentReplace'),disabled:blocked,run:()=>this.startContent(node,'replace')});
     commands.push({label:this.text('rename'),disabled:blocked||(!title?.editable&&!payload),run:()=>{if(payload){this.startContent(node,'rename');return;}this.select(node.id);this.chooseEditor('metadata');setTimeout(()=>document.querySelector<HTMLElement>('[data-field-tag="'+title?.tag+'"] textarea')?.focus());}},
-      {label:this.text('previewUp'),disabled:blocked||index<=0,run:()=>{this.select(node.id);this.stageReorder(-1);}},
-      {label:this.text('previewDown'),disabled:blocked||!group||index<0||index>=group.children.length-1,run:()=>{this.select(node.id);this.stageReorder(1);}},
+      {label:this.text('up'),disabled:blocked||index<=0,run:()=>void this.moveSibling(node.id,-1)},
+      {label:this.text('down'),disabled:blocked||!group||index<0||index>=group.children.length-1,run:()=>void this.moveSibling(node.id,1)},
       {label:this.text('newNote'),icon:'sticky-note',disabled:blocked,run:()=>{this.select(node.id);this.startNote();}},
       {label:this.text('history'),icon:'clock',run:()=>this.showHistory()});
     this.menu(event,node.title,commands);
@@ -280,10 +309,9 @@ export class MetadataEditor implements OnChanges,OnDestroy {
   closeSampleReview(event?:Event){event?.preventDefault();if(this.busy())return;this.sampleReviewDraft.set(null);this.sampleReviewDialog()?.nativeElement.close();this.emitPending();}
   sampleItemReview(id:string){return this.sampleReview()?.changes.sample_review?.reviews.find(row=>row.node_id===id);}
   sampleObjectAvailable(id:string){return !!this.document()?.nodes.some(node=>node.id===id);}
-  hierarchyDraft=signal<{group:ReorderGroup;after_order:string[]}|null>(null);
   creationDraft=signal<{option:CreationOption;count:number;values:Record<string,MetadataRow[]>;request:Record<string,unknown>|null;preview:{objects:{id:string;source_id:string;title:string}[]}|null}|null>(null);
   creationOptions=computed(()=>this.document()?.creation_options.filter(o=>o.parent_id===this.selected())||[]);
-  structurePending=computed(()=>!!this.hierarchyDraft() || !!this.creationDraft() || !!this.contentDraft());
+  structurePending=computed(()=>!!this.creationDraft() || !!this.contentDraft());
   creationSecondary=signal(false);
   startCreation(option:CreationOption){
     if(!this.canEdit() || this.busy() || this.pendingCount())return;
@@ -303,11 +331,60 @@ export class MetadataEditor implements OnChanges,OnDestroy {
     finally{this.busy.set(false);this.working.emit(false);}
   }
   async applyCreation(){const draft=this.creationDraft();if(draft?.preview && draft.request){if(draft.request['reason']!==this.reason){this.error.set(this.text('refreshCreation'));return;}await this.mutate('structure-create',draft.request);}}
-  selectedGroup=computed(()=>this.document()?.reorder_groups.find(g=>g.children.some(c=>c.id===this.selected())));
-  canReorder(delta:number){const group=this.selectedGroup();if(!group || this.busy() || !this.canEdit() || this.pendingCount())return false;const index=group.children.findIndex(c=>c.id===this.selected());return index+delta>=0 && index+delta<group.children.length;}
-  stageReorder(delta:number){if(!this.canReorder(delta))return;const group=this.selectedGroup()!;const after=group.children.map(c=>c.id);const index=after.indexOf(this.selected());[after[index],after[index+delta]]=[after[index+delta],after[index]];this.hierarchyDraft.set({group,after_order:after});this.tool.set('hierarchy');this.emitPending();}
-  cancelReorder(){if(this.busy() || !window.confirm(this.text('discardHierarchy')))return;this.hierarchyDraft.set(null);this.emitPending();}
-  async applyReorder(){const draft=this.hierarchyDraft();if(!draft)return;await this.mutate('structure-reorder',{parent_id:draft.group.parent_id,child_kind:draft.group.child_kind,before_order:draft.group.children.map(c=>c.id),after_order:draft.after_order});}
+  private reorderGroups=computed(()=>new Map(
+    (this.document()?.reorder_groups||[]).flatMap(group=>group.children.map(child=>[child.id,group] as const))));
+  private reorderDrag:{node:MetadataTreeObject;view:MetadataNavigator;revision:number}|null=null;
+  reorderDrop=signal<{key:string;after:boolean}|null>(null);
+  canDragOrder(id:string){return this.canEdit() && !this.busy() && !this.pendingCount() && this.reorderGroups().has(id);}
+  startOrderDrag(event:DragEvent,node:MetadataTreeObject,view:MetadataNavigator){
+    const doc=this.document();
+    if(!doc || !event.dataTransfer || !this.canDragOrder(node.id)){event.preventDefault();return;}
+    event.dataTransfer.effectAllowed='move';
+    event.dataTransfer.setData('text/plain',node.id);
+    this.reorderDrag={node,view,revision:doc.revision};
+  }
+  endOrderDrag(){this.reorderDrag=null;this.reorderDrop.set(null);}
+  orderDragLeave(event:DragEvent,node:MetadataTreeObject){
+    if(this.reorderDrop()?.key===node.navigation_key && !(event.relatedTarget instanceof Node && event.currentTarget instanceof Element && event.currentTarget.contains(event.relatedTarget)))this.reorderDrop.set(null);
+  }
+  private dropOrder(event:DragEvent,node:MetadataTreeObject,view:MetadataNavigator){
+    const drag=this.reorderDrag;
+    if(!drag || drag.revision!==this.document()?.revision || drag.view!==view || drag.node.parent_key!==node.parent_key || drag.node.id===node.id
+        || !this.canDragOrder(drag.node.id) || this.reorderGroups().get(drag.node.id)!==this.reorderGroups().get(node.id)
+        || !(event.currentTarget instanceof HTMLElement))return null;
+    const bounds=event.currentTarget.getBoundingClientRect();
+    const after=event.clientY>=bounds.top+bounds.height/2;
+    const group=this.reorderGroups().get(node.id)!;
+    const from=group.children.findIndex(child=>child.id===drag.node.id);
+    const target=group.children.findIndex(child=>child.id===node.id);
+    const to=target+Number(after)-Number(from<target);
+    return {group,from,to,after};
+  }
+  orderDragOver(event:DragEvent,node:MetadataTreeObject,view:MetadataNavigator){
+    const order=this.dropOrder(event,node,view);
+    if(!order || order.from===order.to){this.reorderDrop.set(null);return;}
+    event.preventDefault();
+    if(event.dataTransfer)event.dataTransfer.dropEffect='move';
+    this.reorderDrop.set({key:node.navigation_key,after:order.after});
+  }
+  async finishOrderDrop(event:DragEvent,node:MetadataTreeObject,view:MetadataNavigator){
+    const order=this.dropOrder(event,node,view);
+    this.endOrderDrag();
+    if(!order || order.from===order.to)return;
+    event.preventDefault();
+    await this.saveOrder(order.group,order.from,order.to);
+  }
+  private async moveSibling(id:string,delta:number){
+    if(!this.canDragOrder(id))return;
+    const group=this.reorderGroups().get(id)!;
+    const from=group.children.findIndex(child=>child.id===id);
+    if(from+delta>=0 && from+delta<group.children.length)await this.saveOrder(group,from,from+delta);
+  }
+  private async saveOrder(group:ReorderGroup,from:number,to:number){
+    const before_order=group.children.map(child=>child.id),after_order=[...before_order];
+    after_order.splice(from,1);after_order.splice(to,0,before_order[from]);
+    await this.mutate('structure-reorder',{parent_id:group.parent_id,child_kind:group.child_kind,before_order,after_order});
+  }
   orderText(objects:{id:string;title:string}[]|undefined,order:string[]|undefined){return (order||[]).map(id=>objects?.find(c=>c.id===id)?.title||id).join('\n');}
   noteDraft=signal<{node_id:string;before:PreparationNote|null;text:string;purpose:PreparationNote['purpose']}|null>(null);
   notesOwner=signal<string|null>(null);
@@ -319,7 +396,7 @@ export class MetadataEditor implements OnChanges,OnDestroy {
   }
   canSaveNote(){const draft=this.noteDraft();return this.canEdit() && !this.busy() && !this.structurePending() && !this.drafts().size && !!draft?.text.trim();}
   closeNoteDialog(event?:Event){event?.preventDefault();if(this.busy())return;this.noteDraft.set(null);this.emitPending();this.noteDialog()?.nativeElement.close();}
-  pendingCount=computed(()=>this.drafts().size+(this.noteDraft()?1:0)+(this.hierarchyDraft()?1:0)+(this.creationDraft()?1:0)+(this.sampleReviewDraft()?1:0)+(this.bulkDraft()?1:0)+(this.importDraft()?.dirty?1:0)+(this.contentDraft()?1:0));
+  pendingCount=computed(()=>this.drafts().size+(this.noteDraft()?1:0)+(this.creationDraft()?1:0)+(this.sampleReviewDraft()?1:0)+(this.bulkDraft()?1:0)+(this.importDraft()?.dirty?1:0)+(this.contentDraft()?1:0));
   emitPending(){this.pending.emit(this.pendingCount());}
   objectTitle(id:string){return this.document()?.nodes.find(n=>n.id===id)?.title||id;}
   startNote(note:PreparationNote|null=null){
@@ -682,7 +759,7 @@ export class MetadataEditor implements OnChanges,OnDestroy {
   discardPending(ask=true){
     if(this.busy())return false;
     if(ask && this.pendingCount() && !window.confirm(this.text('discardProposals')))return false;
-    this.drafts.set(new Map());this.noteDraft.set(null);this.hierarchyDraft.set(null);this.creationDraft.set(null);this.contentDraft.set(null);this.contentDialog()?.nativeElement.close();this.closeSampleReview();this.closeBulk();this.importDraft.set(null);this.importDialog()?.nativeElement.close();this.emitPending();return true;
+    this.drafts.set(new Map());this.noteDraft.set(null);this.creationDraft.set(null);this.contentDraft.set(null);this.contentDialog()?.nativeElement.close();this.closeSampleReview();this.closeBulk();this.importDraft.set(null);this.importDialog()?.nativeElement.close();this.emitPending();return true;
   }
   reload(){if(this.discardPending()){this.comparison.set(null);void this.load();}}
   select(id:string,source?:MetadataNavigator,rowKey?:string){
@@ -798,11 +875,11 @@ export class MetadataEditor implements OnChanges,OnDestroy {
     if(this.importDraft()?.dirty && kind!=='import-record' && kind!=='import-apply')return false;
     if(this.bulkDraft() && kind!=='edit-batch')return false;
     if(this.sampleReviewDraft() && kind!=='sample-review')return false;
-    if(this.hierarchyDraft() && kind!=='structure-reorder')return false;
     if(this.creationDraft() && kind!=='structure-create')return false;
-    const doc=this.document();if(!doc || this.busy() || !this.reason.trim() || !this.canEdit())return false;
-    const signature=JSON.stringify({kind,extra,reason:this.reason});
-    if(this.retry?.signature!==signature)this.retry={signature,request:{request_id:crypto.randomUUID(),revision:doc.revision,source_sha256:doc.source_sha256,base_operation_id:doc.state.head,kind,reason:this.reason,...extra}};
+    const reason=kind==='structure-reorder'?'Reordered sibling objects':this.reason;
+    const doc=this.document();if(!doc || this.busy() || !reason.trim() || !this.canEdit())return false;
+    const signature=JSON.stringify({kind,extra,reason});
+    if(this.retry?.signature!==signature)this.retry={signature,request:{request_id:crypto.randomUUID(),revision:doc.revision,source_sha256:doc.source_sha256,base_operation_id:doc.state.head,kind,reason,...extra}};
     const generation=this.generation;this.busy.set(true);this.working.emit(true);this.error.set('');
     try{
       await this.api.request(this.base()+'/commands',{method:'POST',body:JSON.stringify(this.retry.request)});
@@ -814,7 +891,6 @@ export class MetadataEditor implements OnChanges,OnDestroy {
       if(kind==='import-apply'){this.importDraft.set(null);this.importDialog()?.nativeElement.close();this.emitPending();}
       if(kind==='content-edit'){this.contentDraft.set(null);this.contentDialog()?.nativeElement.close();this.emitPending();}
       if(kind.startsWith('note-')){this.noteDraft.set(null);this.emitPending();}
-      if(kind==='structure-reorder'){this.hierarchyDraft.set(null);this.emitPending();}
       const created=kind==='structure-create'?this.creationDraft()?.preview?.objects[0]?.id:null;
       if(kind==='structure-create'){this.creationDraft.set(null);this.emitPending();}
       this.checkpointName='';this.comparison.set(null);this.message.set(this.text('saved'));this.retry=null;

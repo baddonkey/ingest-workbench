@@ -257,7 +257,9 @@ the unchanged original SIP. Unsaved proposals do not contribute.
 3. Select **Save** and supply an **Editing context / reason** when prompted.
    Wait for the operation to finish and check any reported error. Applied
    changes are attributable and retained; the original SIP is not overwritten.
-4. Use **Edit history** to inspect events, actors, values and checksums. Open an
+4. Use **Edit history** to inspect events, actors, values and checksums. Reorders
+   show a short position summary instead of old and new field values. Open the
+   reorder event and expand **Order details** to see both full sequences. Open an
    event for details, comparison and evidence downloads. **Undo**, **Redo** and
    supported restore actions require a reason and add history rather than
    erasing it.
@@ -340,8 +342,11 @@ same operation. None of these preparation decisions is archival acceptance.
   creation actions. Supply the required fields and reason, **Preview
   creation**, inspect the proposal, then **Create objects**. Available object
   types depend on the selected parent and profile.
-- Where offered, use an object's context menu to preview a sibling reorder and apply it with a
-  reason. Process and activity notes follow their objects when siblings are reordered,
+- Drag a row above or below a sibling of the same kind in the navigator.
+  Dropping saves the order immediately, without a preview, note or reason prompt.
+  Use **Move up** or **Move down** in the row's context menu as an alternative.
+  Save or discard other pending changes first.
+  Existing process and activity notes follow their objects when they are reordered,
   even where the SIP schema does not define an XML ID. Cross-parent moves are not
   part of this action.
 - Select an object and use **New note** or **Notes** to record object-linked
