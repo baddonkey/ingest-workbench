@@ -5,6 +5,7 @@ import json
 import zipfile
 from collections import Counter
 from . import working_metadata as working
+from . import content_editing as content
 from .json_codec import canonical
 from .metadata_drafts import invalidate_review
 from .packages import PackageError, inspect, members, sha
@@ -17,6 +18,7 @@ MAX_PREPARED_INPUTS = 100
 
 
 def freeze_version(operations):
+    if any(r['kind']==content.KIND for r in operations):return 4
     if any(r['kind']=='structure-create' for r in operations):return 3
     return 2 if any(r['kind']=='structure-reorder' for r in operations) else 1
 
@@ -69,7 +71,12 @@ def validate_record(body, record, blob, schemas=None):
     source, prepared = blob(sip['sha256']), blob(record['sha256'])
     if members(prepared).get(sip['metadata_path']) != blob(operation['after_metadata_sha256']):
         raise PackageError('Prepared SIP differs from its frozen metadata version')
-    lineage = member_manifest(source, prepared, sip['metadata_path'])
+    selected=operations[:index+1]
+    if record['version']==4:
+        expected=content.prepared(blob,sip,selected,blob(record['metadata_sha256']))
+        if content.inventory(expected)!=content.inventory(prepared):
+            raise PackageError('Prepared payload differs from its retained working version')
+    lineage = content.lineage(source,prepared) if record['version']==4 else member_manifest(source, prepared, sip['metadata_path'])
     evidence = blob(record['preparation_sha256'])
     verify_history(evidence, operations[:index+1], sip, schemas)
     from .prepared_input_evidence import payload
@@ -79,7 +86,8 @@ def validate_record(body, record, blob, schemas=None):
     if schemas is not None:
         report = inspect(prepared, sip['profile'], schemas)
         if (report['schema_bundle_sha256'] != sip['schema_bundle_sha256']
-                or report['files'] != sip['files'] or not same_references(sip['references'],report['references'],record['version'])):
+                or record['version']!=4 and report['files'] != sip['files']
+                or not same_references(sip['references'],report['references'],record['version'])):
             raise PackageError('Prepared input changed protected inventory, references or schema')
 
 
@@ -119,16 +127,20 @@ def create(service, ident, tenant, actor, sip_id, request):
         # Replay allowed edits and verify every retained operation before publishing a freeze.
         working.validate_retained(body, service.blob, service.schemas)
         source, metadata = service.blob(sip['sha256']), service.blob(state['metadata_sha256'])
-        stream = io.BytesIO()
-        with zipfile.ZipFile(io.BytesIO(source)) as original, zipfile.ZipFile(stream, 'w') as prepared:
-            prepared.comment = original.comment
-            for entry in original.infolist():
-                prepared.writestr(copy.copy(entry), metadata if entry.orig_filename == sip['metadata_path'] else original.read(entry))
-        data = stream.getvalue()
-        report = inspect(data, sip['profile'], service.schemas)
         version = freeze_version(working.history(body,sip_id))
+        if version==4:
+            data=content.prepared(service.blob,sip,working.history(body,sip_id),metadata)
+        else:
+            stream = io.BytesIO()
+            with zipfile.ZipFile(io.BytesIO(source)) as original, zipfile.ZipFile(stream, 'w') as prepared:
+                prepared.comment = original.comment
+                for entry in original.infolist():
+                    prepared.writestr(copy.copy(entry), metadata if entry.orig_filename == sip['metadata_path'] else original.read(entry))
+            data = stream.getvalue()
+        report = inspect(data, sip['profile'], service.schemas)
         if (report['schema_bundle_sha256'] != sip['schema_bundle_sha256']
-                or report['files'] != sip['files'] or not same_references(sip['references'],report['references'],version)):
+                or version!=4 and report['files'] != sip['files']
+                or not same_references(sip['references'],report['references'],version)):
             raise PackageError('Prepared SIP changed protected inventory, references or schema')
         operation = working.history(body, sip_id)[-1]
         record = {'version': version, 'id': request['request_id'], 'sip_id': sip_id, 'transfer_id': ident, 'tenant': tenant,
@@ -141,7 +153,8 @@ def create(service, ident, tenant, actor, sip_id, request):
                   'request_sha256': digest, 'internal_status': 'PASS',
                   'production_acceptance': False}
         from .prepared_input_evidence import bundle
-        record['evidence_sha256'] = put(service.data, bundle(record, member_manifest(source, data, sip['metadata_path']),
+        record['evidence_sha256'] = put(service.data, bundle(record,
+              content.lineage(source,data) if version==4 else member_manifest(source, data, sip['metadata_path']),
               data, service.blob(record['preparation_sha256']), service.schemas))
         body.setdefault('prepared_inputs', []).append(record)
         validate_record(body, record, service.blob, service.schemas)

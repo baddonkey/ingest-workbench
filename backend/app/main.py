@@ -7,7 +7,7 @@ from fastapi.responses import Response, JSONResponse
 from pydantic import BaseModel, Field, ConfigDict
 from .auth import Principal, principal, require
 from .service import Service
-from .packages import PackageError, MAX_ZIP, PROFILES, ech_schema_dir
+from .packages import PackageError, MAX_ZIP, MAX_EXPANDED, PROFILES, ech_schema_dir
 from .store import Conflict
 from .aip_context import PreservationContext
 from .aip_validation import validate_package,institutional_gate
@@ -61,11 +61,36 @@ class ExportSip(Revision):
     source_sha256:str=Field(pattern='^[0-9a-f]{64}$')
     draft_id:str=Field(min_length=1,max_length=100)
     reason:str=Field(min_length=1,max_length=2000)
+class MetadataFieldProposal(Model):
+    node_id:str=Field(min_length=1,max_length=100)
+    field_id:str=Field(min_length=1,max_length=100)
+    before:list[dict]=Field(max_length=200)
+    values:list[dict]=Field(max_length=200)
+class SampleItemReview(Model):
+    node_id:str=Field(min_length=1,max_length=100)
+    outcome:Literal['checked','issue']
+    comment:str=Field(default='',max_length=2000)
+class MetadataImportSource(Model):
+    filename:str=Field(min_length=1,max_length=200)
+    format:Literal['csv','xlsx','xml','json']
+    data_base64:str=Field(min_length=1,max_length=349528)
+class MetadataImportDecision(Model):
+    row_id:str=Field(min_length=1,max_length=100)
+    action:Literal['apply','exclude']
+    node_id:str=Field(default='',max_length=100)
+    field:str=Field(default='',max_length=100)
+    reason:str=Field(default='',max_length=500)
+class ContentSource(Model):
+    filename:str=Field(min_length=1,max_length=200)
+    data_base64:str=Field(max_length=4*((MAX_EXPANDED+2)//3))
 class MetadataOperation(Revision):
     request_id:str=Field(pattern='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
     source_sha256:str=Field(pattern='^[0-9a-f]{64}$')
     base_operation_id:str|None=None
-    kind:str=Field(pattern='^(edit|undo|redo|restore|checkpoint|note-add|note-edit|note-delete|structure-reorder|structure-create)$')
+    kind:str=Field(pattern='^(edit|edit-batch|undo|redo|restore|checkpoint|note-add|note-edit|note-delete|structure-reorder|structure-create|sample-record|sample-review|import-record|import-apply|content-edit)$')
+    content_action:Literal['rename','replace']|None=None
+    content_name:str=Field(default='',max_length=200)
+    content_source:ContentSource|None=None
     reason:str=Field(min_length=1,max_length=2000)
     node_id:str|None=None
     field_id:str|None=None
@@ -83,6 +108,17 @@ class MetadataOperation(Revision):
     after_order:list[str]=Field(default_factory=list,max_length=200)
     count:int=Field(default=1,ge=1,le=20,strict=True)
     object_values:dict=Field(default_factory=dict)
+    edits:list[MetadataFieldProposal]=Field(default_factory=list,max_length=200)
+    sample_mode:Literal['absolute','percent']='absolute'
+    sample_size:int=Field(default=10,ge=1,le=500,strict=True)
+    sample_seed:str=Field(default='',max_length=200)
+    sample_name:str=Field(default='',max_length=200)
+    sample_reference:str=Field(default='',max_length=200)
+    sample_id:str|None=Field(default=None,max_length=100)
+    reviews:list[SampleItemReview]=Field(default_factory=list,max_length=500)
+    import_source:MetadataImportSource|None=None
+    import_id:str|None=Field(default=None,max_length=100)
+    import_decisions:list[MetadataImportDecision]=Field(default_factory=list,max_length=200)
 class FreezeInput(Revision):
     request_id:str=Field(pattern='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
     source_sha256:str=Field(pattern='^[0-9a-f]{64}$')
@@ -125,20 +161,23 @@ def preparation(ident:str,sip_id:str,operation_id:str|None=None,u:Principal=Depe
 @app.get('/api/transfers/{ident}/sips/{sip_id}/preparation/sample')
 def preparation_sample(ident:str,sip_id:str,mode:Literal['absolute','percent']='absolute',
                        size:int=Query(default=10,ge=1,le=500),revision:int|None=Query(default=None,ge=0),
+                       seed:str|None=Query(default=None,min_length=1,max_length=200),
+                       name:str=Query(default='',max_length=200),reference:str=Query(default='',max_length=200),
                        u:Principal=Depends(require('archive-reader'))):
-    from .sampling import draw_sample
+    from .sampling import plan
+    from .service import uid
     from .working_metadata import workspace
     if mode=='percent' and size>100:
         raise PackageError('Sample percentage must be between 1 and 100')
     document=workspace(service,ident,u.tenant,sip_id)
     if revision is not None and revision!=document['revision']:
         raise HTTPException(status_code=409,detail='Working version changed; reload before drawing a sample')
-    return JSONResponse({'revision':document['revision'],'items':draw_sample(document['nodes'],mode,size)},
+    sample=plan(document['nodes'],mode,size,seed if seed is not None else uid(),name,reference)
+    return JSONResponse({**sample,'revision':document['revision'],'metadata_sha256':document['state']['metadata_sha256'],
+                         'input_operation_id':document['state']['head']},
                         headers={'Cache-Control':'no-store'})
 
-@app.post('/api/transfers/{ident}/sips/{sip_id}/preparation/commands')
-def preparation_command(ident:str,sip_id:str,data:MetadataOperation,u:Principal=Depends(require('archive-operator'))):
-    from .working_metadata import command
+def metadata_request(data:MetadataOperation):
     request=data.model_dump()
     # Keep historical metadata-only request digests stable across this API extension.
     if not data.kind.startswith('note-'):
@@ -147,11 +186,104 @@ def preparation_command(ident:str,sip_id:str,data:MetadataOperation,u:Principal=
         for key in ('parent_id','child_kind','before_order','after_order'):request.pop(key)
     if data.kind!='structure-create':
         for key in ('count','object_values'):request.pop(key)
-    return command(service,ident,u.tenant,u.sub,sip_id,request)
+    if data.kind!='edit-batch':request.pop('edits')
+    if data.kind!='sample-record':
+        for key in ('sample_mode','sample_size','sample_seed','sample_name','sample_reference'):request.pop(key)
+    if data.kind!='sample-review':
+        for key in ('sample_id','reviews'):request.pop(key)
+    if data.kind!='import-record':request.pop('import_source')
+    if data.kind!='content-edit':
+        for key in ('content_action','content_name','content_source'):request.pop(key)
+    if data.kind!='import-apply':
+        for key in ('import_id','import_decisions'):request.pop(key)
+    return request
+
+@app.post('/api/transfers/{ident}/sips/{sip_id}/preparation/commands')
+def preparation_command(ident:str,sip_id:str,data:MetadataOperation,u:Principal=Depends(require('archive-operator'))):
+    from .working_metadata import command
+    return command(service,ident,u.tenant,u.sub,sip_id,metadata_request(data))
+
+@app.post('/api/transfers/{ident}/sips/{sip_id}/preparation/edit-preview')
+def edit_preview(ident:str,sip_id:str,data:MetadataOperation,u:Principal=Depends(require('archive-operator'))):
+    from .working_metadata import baseline,sip_for,history,apply_edits
+    from . import editor_fields as fields
+    from .packages import xml,sha
+    from .json_codec import canonical
+    request=metadata_request(data)
+    if data.kind!='edit-batch' or not data.reason.strip() or len(canonical(request))>256*1024:
+        raise PackageError('Invalid or oversized package-edit proposal')
+    body=service.get(ident,u.tenant);sip=sip_for(body,sip_id)
+    _,metadata,state=baseline(service,body,sip)
+    if body['revision']!=data.revision or sip['sha256']!=data.source_sha256 or state['head']!=data.base_operation_id:
+        raise Conflict('Working version changed; reload before previewing edits')
+    root=xml(metadata);info=fields.schema(service.schemas,sip)
+    changes=apply_edits(root,info,request['edits'],fields.current_identities(history(body,sip_id)))
+    updated=fields.validate(root,service.schemas,sip)
+    return JSONResponse({'edits':changes,'metadata_sha256':sha(updated)},headers={'Cache-Control':'no-store'})
+
+@app.post('/api/transfers/{ident}/sips/{sip_id}/preparation/import-preview')
+def import_preview(ident:str,sip_id:str,data:MetadataOperation,u:Principal=Depends(require('archive-operator'))):
+    from .working_metadata import baseline,sip_for,history,apply_import
+    from . import editor_fields as fields
+    from .packages import xml,sha
+    from .json_codec import canonical
+    request=metadata_request(data)
+    if data.kind!='import-apply' or not data.reason.strip() or len(canonical(request))>256*1024:
+        raise PackageError('Invalid or oversized metadata import review')
+    body=service.get(ident,u.tenant);sip=sip_for(body,sip_id)
+    _,metadata,state=baseline(service,body,sip)
+    if body['revision']!=data.revision or sip['sha256']!=data.source_sha256 or state['head']!=data.base_operation_id:
+        raise Conflict('Working version changed; reload before previewing imports')
+    records=history(body,sip_id)
+    changes,updated=apply_import(xml(metadata),fields.schema(service.schemas,sip),records,
+        request,state['head'],metadata,service.schemas,sip,fields.current_identities(records))
+    return JSONResponse({'edits':changes['metadata_import']['edits'],'metadata_sha256':sha(updated)},headers={'Cache-Control':'no-store'})
+
+@app.get('/api/transfers/{ident}/sips/{sip_id}/preparation/import-template/{format}')
+def import_template(ident:str,sip_id:str,format:Literal['csv','xlsx','xml','json'],object_id:str|None=None,u:Principal=Depends(require('archive-reader'))):
+    from .working_metadata import baseline,sip_for,history
+    from . import editor_fields as fields, metadata_imports
+    from .packages import xml
+    from .package_handler import attachment_headers
+    body=service.get(ident,u.tenant);sip=sip_for(body,sip_id)
+    _,metadata,_=baseline(service,body,sip)
+    nodes,_=fields.catalog(xml(metadata),fields.schema(service.schemas,sip),
+        identities=fields.current_identities(history(body,sip_id)))
+    if object_id is not None:
+        if format=='xml':raise PackageError('XML templates require the complete metadata document')
+        nodes=[node for node in nodes if node['id']==object_id]
+        if not nodes:raise KeyError(object_id)
+    data=metadata_imports.template(nodes,format,metadata)
+    if len(data)>metadata_imports.MAX_SOURCE:raise PackageError('Template exceeds 256 KiB; select an individual object')
+    return Response(data,media_type='application/octet-stream',
+                    headers=attachment_headers('metadata-import-template.'+format))
+
+@app.get('/api/transfers/{ident}/sips/{sip_id}/preparation/import-source/{operation_id}')
+def import_source(ident:str,sip_id:str,operation_id:str,u:Principal=Depends(require('archive-reader'))):
+    from .working_metadata import sip_for,history
+    from .metadata_imports import source
+    from .package_handler import attachment_headers
+    body=service.get(ident,u.tenant);sip_for(body,sip_id)
+    record=next((record for record in history(body,sip_id) if record['id']==operation_id and record['kind']=='import-record'),None)
+    if record is None:raise KeyError(operation_id)
+    retained,data=source(record['changes']['metadata_import_proposal']['source'])
+    return Response(data,media_type='application/octet-stream',headers=attachment_headers(retained['filename']))
+
+@app.post('/api/transfers/{ident}/sips/{sip_id}/preparation/content-preview')
+def content_edit_preview(ident:str,sip_id:str,data:MetadataOperation,u:Principal=Depends(require('archive-operator'))):
+    from . import working_metadata as working, content_editing as content
+    if data.kind!=content.KIND:raise PackageError('Expected a payload-edit proposal')
+    body=service.get(ident,u.tenant);sip=working.sip_for(body,sip_id)
+    _,metadata,state=working.baseline(service,body,sip)
+    if body['revision']!=data.revision or sip['sha256']!=data.source_sha256 or state['head']!=data.base_operation_id:
+        raise Conflict('Working version changed; reload before previewing content')
+    archive=content.prepared(service.blob,sip,working.history(body,sip_id),metadata)
+    changes,_,_=content.apply(archive,sip,service.schemas,metadata_request(data))
+    return JSONResponse(changes,headers={'Cache-Control':'no-store'})
 
 @app.post('/api/transfers/{ident}/sips/{sip_id}/preparation/creation-preview')
 def creation_preview(ident:str,sip_id:str,data:MetadataOperation,u:Principal=Depends(require('archive-operator'))):
-    from .working_metadata import baseline,sip_for
+    from .working_metadata import baseline,sip_for,history
     from . import hierarchy_creation as creation, editor_fields as fields
     from .packages import xml
     from .json_codec import canonical
@@ -162,7 +294,7 @@ def creation_preview(ident:str,sip_id:str,data:MetadataOperation,u:Principal=Dep
     if body['revision']!=data.revision or sip['sha256']!=data.source_sha256 or state['head']!=data.base_operation_id:
         raise Conflict('Working version changed; reload before previewing creation')
     root=xml(metadata);info=fields.schema(service.schemas,sip)
-    result=creation.apply(root,info,data.model_dump())
+    result=creation.apply(root,info,data.model_dump(),fields.current_identities(history(body,sip_id)))
     fields.validate(root,service.schemas,sip)
     return JSONResponse(result,headers={'Cache-Control':'no-store'})
 
@@ -171,8 +303,8 @@ def preparation_artifact(ident:str,sip_id:str,operation_id:str,kind:str,u:Princi
     from .working_metadata import artifact
     from .package_handler import attachment_headers
     data=artifact(service,ident,u.tenant,sip_id,operation_id,kind)
-    extension='.zip' if kind=='evidence' else '.xml' if kind=='metadata' else '.json'
-    return Response(data,media_type='application/zip' if kind=='evidence' else 'application/octet-stream',headers=attachment_headers('preparation-'+operation_id+extension))
+    extension='.zip' if kind in ('evidence','archive') else '.xml' if kind=='metadata' else '.json'
+    return Response(data,media_type='application/zip' if kind in ('evidence','archive') else 'application/octet-stream',headers=attachment_headers('preparation-'+operation_id+extension))
 
 @app.post('/api/transfers/{ident}/sips/{sip_id}/prepared-inputs')
 def freeze_prepared_input(ident:str,sip_id:str,data:FreezeInput,u:Principal=Depends(require('archive-operator'))):

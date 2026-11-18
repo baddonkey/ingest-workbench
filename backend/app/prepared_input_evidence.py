@@ -27,6 +27,11 @@ def payload(record, lineage, prepared, preparation, schemas=None):
         descriptor_scope = json.loads(files['freeze.json'])
         descriptor_scope['logical_creation'] = 'Native-ID logical objects may be added; exact v5 operation replay verifies scope and existing identities'
         files['freeze.json'] = canonical(descriptor_scope)
+    if record['version']==4:
+        descriptor_scope=json.loads(files['freeze.json'])
+        descriptor_scope['transformation']='Apply replay-verified payload edits and exact metadata; retain originals, prior content archives and complete member lineage'
+        descriptor_scope['content_changes']='Only declared payload paths/bytes and corresponding inventory fields may change; all file-reference occurrences and attributes remain conserved'
+        files['freeze.json']=canonical(descriptor_scope)
     premis = ET.Element('{'+P+'}premis', nsmap={'premis': P, 'xsi': I}, version='3.0')
     objects = {record['source_sha256']: None, record['sha256']: len(prepared),
                record['preparation_sha256']: len(preparation)}

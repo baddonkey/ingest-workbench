@@ -14,19 +14,80 @@ STRUCTURAL = OBJECTS | {'inhaltsverzeichnis','dateiRef','unstrukturierterAnhang'
 PROTECTED = {'paketTyp','ablieferungstyp','pruefalgorithmus','pruefsumme'}
 
 
-def identity_path(element, version=2):
+def identity_path(element, version=2, identities=None):
     if version==1:return element.getroottree().getpath(element)
     parts=[]
     current=element
     while current is not None:
         if current.get('id'):
             suffix='/'.join(reversed(parts))
-            return 'source-id:'+current.get('id')+('/'+suffix if suffix else '')
+            path = 'source-id:'+current.get('id')+('/'+suffix if suffix else '')
+            break
         parent=current.getparent()
         siblings=[e for e in parent if e.tag==current.tag] if parent is not None else [current]
         parts.append(ET.QName(current).localname+'['+str(siblings.index(current)+1)+']')
         current=parent
-    return '/'+ '/'.join(reversed(parts))
+    else:path = '/'+ '/'.join(reversed(parts))
+    if identities:
+        prefix, suffix = path, []
+        while prefix:
+            if prefix in identities:
+                return identities[prefix]+('/'+'/'.join(reversed(suffix)) if suffix else '')
+            prefix, separator, part = prefix.rpartition('/')
+            if not separator:break
+            suffix.append(part)
+    return path
+
+
+def identity_bindings(root, identities=None):
+    tags={A+kind for kind in OBJECTS}
+    return {element:identity_path(element,identities=identities) for element in root.iter()
+            if element.tag in tags and not element.get('id')}
+
+
+def validate_identities(root, identities):
+    if not isinstance(identities,dict) or len(identities)>20000 or any(
+            not isinstance(k,str) or not isinstance(v,str) or not k or not v
+            or len(k)>8000 or len(v)>8000 for k,v in identities.items()):
+        raise PackageError('Invalid editor identity sidecar')
+    if identities and (set(identities)!={identity_path(e) for e in identity_bindings(root)}
+                       or len(set(identities.values()))!=len(identities)):
+        raise PackageError('Editor identities differ from the selected XML objects')
+
+
+def identity_snapshots(records):
+    current={};result={}
+    for record in records:
+        before=current
+        retained=record['changes'].get('identities')
+        if retained is not None:
+            if (record.get('version')!=10 or record['kind']!='structure-reorder'
+                    or not isinstance(retained,dict) or set(retained)!={'version','before','after'}
+                    or retained['version']!=1 or retained['before']!=current):
+                raise PackageError('Editor identity history binding mismatch')
+            current=retained['after']
+        elif record.get('version')==10:
+            raise PackageError('Missing retained editor identities')
+        elif record['kind'] in ('undo','redo','restore'):
+            target=result.get(record['changes']['related_operation_id'])
+            if target is None:raise PackageError('Editor identities have an unknown compensation target')
+            current=target[0 if record['kind']=='undo' else 1]
+        result[record['id']]=(before,current)
+    return result
+
+
+def current_identities(records):
+    versions=identity_snapshots(records)
+    return versions[records[-1]['id']][1] if records else {}
+
+
+def object_title(element, *, activity_assignment=True):
+    kind=ET.QName(element).localname
+    return (element.findtext(A+'titel') or element.findtext(A+'name')
+            or element.findtext(A+'aktenbildnerName') or element.findtext(A+'ablieferndeStelle')
+            or (element.findtext(A+'vorschreibung') if kind=='aktivitaet' and activity_assignment else '')
+            or ((element.text or '').strip() if kind in ('vorgang','aktivitaet') else '')
+            or element.get('id') or label(kind))
 
 
 def schema(schemas, sip):
@@ -97,25 +158,26 @@ def definition(item, info, depth=0, identity_version=2):
             'date':item.type in ('historischerZeitpunkt','historischerZeitraum','zeitpunkt','zeitraum','datumTypA','datumTypB')}
 
 
-def values(parent, field):
+def values(parent, field, identities=None):
     result = []
     for element in parent.findall(A+field['tag']):
-        row = {'id':key('row',identity_path(element,field.get('identity_version',2))), 'text':element.text or '',
+        row = {'id':key('row',identity_path(element,field.get('identity_version',2),identities)), 'text':element.text or '',
                'attributes':{a['name']:element.get(a['name'],'') for a in field['attributes']},
-               'children':{child['tag']:values(element,child) for child in field['children']}}
+               'children':{child['tag']:values(element,child,identities) for child in field['children']}}
         result.append(row)
     return result
 
 
-def catalog(root, info, identity_version=2):
+def catalog(root, info, identity_version=2, identities=None):
+    if identities is not None:validate_identities(root,identities)
     nodes, available = [], {}
     for element in root.iter():
         if not isinstance(element.tag,str) or not element.tag.startswith(A) or ET.QName(element).localname not in OBJECTS:
             continue
         kind = object_kind(element)
-        path = identity_path(element,identity_version)
+        path = identity_path(element,identity_version,identities)
         node_id = key('logical',path)
-        name = element.findtext(A+'titel') or element.findtext(A+'name') or element.findtext(A+'aktenbildnerName') or element.findtext(A+'ablieferndeStelle') or element.get('id') or label(kind)
+        name = object_title(element)
         nodes.append({'id':node_id,'kind':kind,'label':label(kind),'title':name,'path':path,
                       'source_id':element.get('id'),'depth':sum(1 for p in element.iterancestors() if isinstance(p.tag,str) and ET.QName(p).localname in OBJECTS)})
         fields = []
@@ -125,7 +187,7 @@ def catalog(root, info, identity_version=2):
             field = definition(item,info,identity_version=identity_version)
             field['id'] = key('editor-field',path+'/'+item.name)
             field['editable'] = item.name not in PROTECTED and not (kind in ('datei','ordner') and item.name=='name')
-            field['values'] = values(element,field)
+            field['values'] = values(element,field,identities)
             fields.append(field)
             available[field['id']] = (element,field,node_id)
         nodes[-1]['fields'] = fields
@@ -134,9 +196,9 @@ def catalog(root, info, identity_version=2):
     return nodes, available
 
 
-def navigation(root, nodes):
+def navigation(root, nodes, identities=None):
     by_id = {node['id']: node for node in nodes}
-    elements = {key('logical', identity_path(element)): element for element in root.iter()
+    elements = {key('logical', identity_path(element,identities=identities)): element for element in root.iter()
                 if isinstance(element.tag, str) and element.tag.startswith(A)
                 and ET.QName(element).localname in OBJECTS}
     element_ids = {element: ident for ident, element in elements.items()}
@@ -184,11 +246,11 @@ def navigation(root, nodes):
         'hierarchy': tree('hierarchy', dossiers), 'inventory': tree('inventory', package, inventory=True)}
 
 
-def apply(parent, field, proposed, budget=None):
+def apply(parent, field, proposed, budget=None, identities=None):
     budget = budget if budget is not None else [0]
     if not isinstance(proposed,list) or len(proposed)>200 or len(proposed)<field['minimum'] or (field['maximum'] is not None and len(proposed)>field['maximum']):
         raise PackageError('Invalid occurrence count: '+field['label'])
-    current = {row['id']:element for row,element in zip(values(parent,field),parent.findall(A+field['tag']))}
+    current = {row['id']:element for row,element in zip(values(parent,field,identities),parent.findall(A+field['tag']))}
     seen = set(); replacements = []
     for row in proposed:
         budget[0] += 1
@@ -218,7 +280,7 @@ def apply(parent, field, proposed, budget=None):
         except ValueError as exc:
             raise PackageError('Characters forbidden in XML') from exc
         for child in field['children']:
-            apply(element,child,row['children'][child['tag']],budget)
+            apply(element,child,row['children'][child['tag']],budget,identities)
         replacements.append(element)
     old = parent.findall(A+field['tag'])
     if old:

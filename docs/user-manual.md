@@ -11,10 +11,9 @@ controls also offer German, French and Italian.
 > archival acceptance are different decisions. Building a candidate does not
 > deposit it in a repository or accept it in a descriptive system.
 
-The [specification](specification.md) defines the product contract and local
-operations. The [gap list](gap-list.md) describes incomplete and unqualified
-features. Screenshots in this guide show an isolated demonstration transfer
-using a KOST reference SIP; names, counts and dates will differ in your work.
+The [specification](specification.md) defines the product contract, local
+operations and current limitations. Screenshots show demonstration transfers
+using sample SIPs; names, counts and dates will differ in your work.
 
 ## Contents
 
@@ -23,7 +22,7 @@ using a KOST reference SIP; names, counts and dates will differ in your work.
 - [Explore the Ingest Packager](#explore-the-ingest-packager)
 - [Prepare metadata and structure](#prepare-metadata-and-structure)
 - [Inspect validation results](#inspect-validation-results)
-- [Freeze a prepared version](#freeze-a-prepared-version)
+- [Freeze, validate and select a prepared version](#freeze-validate-and-select-a-prepared-version)
 - [Arrange, review and build](#arrange-review-and-build)
 - [Evidence and preservation context](#evidence-and-preservation-context)
 - [Troubleshooting](#troubleshooting)
@@ -82,19 +81,69 @@ Select **Open Ingest Packager** on a SIP card.
 | **Classification navigator** | Expand or collapse the classification hierarchy and select a record or referenced file. |
 | **Dossiers** | Browse dossier descendants and referenced files, with reference, date and medium columns. |
 | **Package content** | Browse the physical package and its folder/file hierarchy. |
-| Upper-right editor | View the selected object's fields; **Secondary fields** reveals more available fields. Open objects appear as tabs. |
-| Lower-right tools | Open SIP-Validation, sampling, hierarchy actions, notes, changes, metadata search or edit history. |
+| Upper-right editor | View the currently selected object's fields; **Secondary fields** reveals more available fields. Select another object in the navigator to switch; there are no open-object tabs to manage. |
+| Lower-right tools | Open SIP-Validation, sampling, notes, changes, metadata search or edit history. Object creation and reordering controls open through the navigator actions. |
 | Bottom status bar | See pending proposals and enter the **Editing context / reason** used for attributable actions. |
 
-![A nested dossier, folder and file selected in the classification tree, with file metadata and fixity fields](images/nested-records.png)
+The **Classification scheme** form shows **Name**, **Generation**, **Period of
+use**, **Shared use** and **Remarks**, in that order. Other available fields
+remain under **Secondary fields**.
+
+If an optional group such as **Creation date range** is empty, choose **Add value**
+to reveal its fields. Use the main toolbar's **Save** to persist the change.
+
+Under **Secondary fields**, **Additional metadata** shows a read-only summary
+with an **Edit additional metadata...** button. The dialog edits characteristic
+names and values; add or remove rows, or use **Move up** and **Move down**
+to change their order. **Cancel** (or Escape) leaves
+the current proposal unchanged. The dialog's **Save** updates the pending
+proposal; use **Save** in the main toolbar and provide an editing reason to
+persist it. The full-width **+ Characteristic** button adds another row.
+Removing every row removes the optional additional-metadata container.
+
+![Additional metadata dialog with characteristic names, values, and controls to add, move, or remove rows](images/additional-metadata.png)
+
+The **File** form shows **Name** and **ID** first. Expand **Secondary fields**
+for **Properties**, **Original name**, **Checksum algorithm** and **Checksum**,
+in that order. Name, ID and fixity fields remain protected. **Edit file
+properties...** uses the same compact name/value dialog and pending-proposal
+workflow as additional metadata; removing every row removes all properties.
+
+![File metadata with protected name and ID above the secondary properties, original name and checksum fields](images/file-metadata.png)
+
+![Selected file with classification navigator, contextual breadcrumb trail and metadata editor](images/nested-records.png)
 
 The navigators are independently scrollable. Expand branches to follow nested
-dossiers, folders, documents and files; selecting a referenced file does not
-change the Dossiers navigator into Package content. The same file can appear
+dossiers, folders, documents and files. Selecting an item in the classification
+navigator reveals and scrolls to it in the active Dossiers or Package content
+view, expanding its ancestors and clearing a filter if it hides the selection.
+The view switches only if the item is available exclusively in the other view.
+The same file can appear
 under more than one logical owner without becoming a different file.
+The breadcrumb trail below the package summary shows the selected object's
+path, with type badges and separators. Click an ancestor to open its metadata;
+the final item marks the current object. The path follows the navigator used
+to select the object, so logical references and physical package paths remain
+distinct.
 Use the horizontal splitter between the editor and tools to give either pane
 more space. The search box in the lower navigator filters that navigator;
-**Search metadata** searches metadata values and opens matching objects.
+**Search metadata** searches applied metadata values in the lower-right tools
+pane, leaving both navigators and the editor visible. The query and match count
+sit above the results table. Selecting an object name opens its metadata in the
+editor without closing the search or discarding its results. The header search
+box opens the same search pane; results update as you type.
+
+Expand **Search filters** to combine object type, metadata field, name/identifier/
+path and an inclusive date period. Dates match an overlapping known date or
+period on the object; unknown dates are not treated as matches. **Reset filters**
+clears these restrictions without clearing the text query. The version line
+identifies the applied working head and metadata digest (full identifiers appear
+in its tooltip); unsaved proposals and historical versions are not searched.
+Finding severity filters are available only when the selected SIP-Validation
+report matches this exact input, including its original/frozen artifact identity.
+A report from another artifact is not substituted even when the ZIP digests match.
+
+![Metadata search with combined object, field, identifier and date filters and the applied-version identity](images/metadata-search.png)
 
 ![Package content navigator expanded through the package header and schema folder](images/package-content.png)
 
@@ -103,6 +152,101 @@ For the retained source rather than working metadata, choose **Package** >
 navigation, source metadata, original downloads and supported text previews.
 Switch back to **Edit working metadata** to continue preparation. A prompt
 protects unsaved proposals when leaving the editor.
+
+### Rename or replace payload files
+
+Select a payload file in either navigator. **Rename...** in its context menu or
+toolbar opens a reviewed filename change; **Replace file content** selects new
+bytes without implicitly renaming the file. The Name, ID and checksum fields
+remain protected in the metadata form. Header and schema files cannot be changed.
+
+Enter an **Editing context / reason**, choose **Preview content change**, and
+review the before/after paths, sizes and SHA-256 digests. Preview does not retain
+an operation. Editing the filename, source or reason invalidates that preview.
+**Apply content change** records one attributable, retryable operation and one
+undo step. Replacement recomputes the submitted checksum using the file's existing
+declared algorithm; file IDs, logical references and existing notes remain linked.
+Original and replaced bytes stay retained in the preparation evidence.
+If an Apply acknowledgement is lost, keep the proposal unchanged and retry
+**Apply content change**; the server deduplicates the operation. Closing the
+local proposal does not undo an operation already retained by the server.
+
+Use **Package > Download working SIP** for the selected package's current applied
+head, excluding pending proposals. Historical file-change events also offer that
+exact version's working SIP. This download is not a freeze or an approval.
+After applying changes, freeze and independently review a successor before
+candidate authorization. **Preview original content** still deliberately shows
+the retained original file, not its replacement.
+
+Local limits remain 256 MiB expanded SIP, 64 MiB SIP ZIP and 256 MiB replacement
+source. Preparation/freeze evidence has additional 256 MiB expanded / 64 MiB ZIP
+limits. A working SIP below its size limit can therefore still exceed the frozen
+evidence limit, which includes the prepared SIP and retained history. Refusal
+does not discard applied work or publish a partial freeze; earlier versions and
+Undo remain available. These are bounded local workflows, not large-scale
+streaming qualification.
+
+![Replacement review showing retained file identity, reason and before/after byte digests before Apply](images/content-editing.png)
+
+### Preview original file content
+
+Select a file and choose **Preview original content**, then **Load preview**.
+The same action is available in **Inspect original**. The dialog always identifies
+the retained original SIP and file SHA-256, even when opened from the working
+metadata editor. Opening or closing it does not discard unsaved metadata proposals
+or record a preparation change.
+
+- Images: PNG, JPEG, GIF, WebP, supported classic TIFF and gray/RGB boxed
+  JPEG-2000 (`.jp2`), up to 8 MiB, 8192 pixels per side and 16,000,000 pixels.
+  Only the first image/TIFF/animation frame is shown.
+- PDF: up to 12 MiB and 200 pages. Use **Previous** and **Next** to change pages.
+  Pages are painted onto a canvas; submitted scripts, links, forms and annotations
+  are not exposed as interactive content.
+- Audio/video: supported WAV, MP3, Vorbis/Opus Ogg, M4A, MP4 and WebM files,
+  up to 32 MiB and two hours, using the browser's available codecs and native
+  controls. Playback never starts automatically. Video uses the same dimension
+  limits as images.
+
+Preview loading/rendering has a 20-second deadline per operation. Source size and
+SHA-256 are checked before decoding. Unsupported content, HTML, SVG, oversized
+files and decoder errors remain downloadable originals, with an explicit reason
+instead of an invented preview. Closing the dialog stops playback and releases
+preview resources.
+
+Previews can omit unsupported or oversized content, especially within PDFs;
+they are neither fidelity/completeness checks nor format validation. Browser-side
+limits are not malware quarantine or isolated parser memory quotas. Previewing
+does not change receipt checks, SIP-Validation, candidate authorization or
+external archival acceptance.
+
+![Read-only original TIFF preview with source digests, explicit limits and download controls](images/content-preview.png)
+
+### Inspect preparation statistics
+
+Select **Statistics** below the metadata editor. The version line identifies the
+applied operation and metadata SHA-256; the separate source digest identifies
+the unchanged original SIP. Unsaved proposals do not contribute.
+
+- **Content files** and **Content size (bytes)** describe retained payload bytes.
+  Object-type counts describe canonical metadata objects, including inventory
+  files and directories; a shared file is not counted again for each logical
+  reference. These counts need not equal the payload-file count.
+- Scalar-field indicators show populated and empty schema-exposed fields,
+  unsatisfied field/attribute requirements, broken file references and payload
+  files without a reference. Optional empty values are not validation failures.
+  The indicators do not establish descriptive completeness or archival acceptance
+  and do not replace full schema/receipt checks.
+- Click a count to inspect its objects or field paths. Larger lists have
+  **Previous** and **Next** pages of 100 rows. Selecting an object opens its
+  metadata; a field-linked result also reveals the relevant field.
+- Format-assessment and finding counts appear only for a SIP-Validation report
+  matching this exact original/frozen input. Counts describe report entries,
+  not necessarily unique files. Their drilldowns retain the report run/input/
+  report digests; unmapped paths and package findings remain visible without
+  inventing an object link. An unavailable or different-input report is not
+  treated as zero findings or a successful assessment.
+
+![Preparation statistics showing exact metadata and source identities, canonical object counts, field indicators and reference checks](images/preparation-statistics.png)
 
 ## Prepare metadata and structure
 
@@ -115,34 +259,138 @@ protects unsaved proposals when leaving the editor.
 3. Select **Save** and supply an **Editing context / reason** when prompted.
    Wait for the operation to finish and check any reported error. Applied
    changes are attributable and retained; the original SIP is not overwritten.
-4. Use **Edit history** to inspect events, actors, values and checksums. Open an
+4. Use **Edit history** to inspect events, actors, values and checksums. Reorders
+   show a short position summary instead of old and new field values. Open the
+   reorder event and expand **Order details** to see both full sequences. Open an
    event for details, comparison and evidence downloads. **Undo**, **Redo** and
    supported restore actions require a reason and add history rather than
    erasing it.
 
-Save currently records individual attributable operations, not an atomic
-package-wide transaction. If a save reports a failure or a concurrent change,
-review the visible result and history before retrying or reloading. Reloading
-or leaving can discard unsaved proposals.
+**Save** applies all pending field proposals across the opened SIP as one atomic
+operation, with one reason, revision and undo step. Its history and METS/PREMIS
+evidence retain every field's object identity and before/after values. If any
+proposal fails validation or the working baseline changed, none are applied and
+the proposals remain available for review. After a lost acknowledgement,
+retrying the unchanged save retrieves the same retained operation rather than
+applying it again. Reloading or leaving can discard unsaved proposals.
+
+### Apply a reviewed bulk metadata change
+
+1. Save or discard other proposals, then use **Search metadata** and its filters
+   to identify the objects to change. **Bulk change…** is available for 1-200
+   distinct matching objects with a common editable scalar, single-valued field.
+   Protected, structured, attributed and repeated fields are excluded.
+2. Select **Bulk change…**, choose the **Metadata field**, enter the **New value
+   for all matching objects**, and supply an **Editing context / reason**.
+3. Select **Preview bulk change**. The server validates the complete proposal
+   against the current baseline and trusted schema without saving it. Review
+   every object's **Before** and **After** values. Already-equal values are
+   skipped; a proposal with no changes cannot be applied.
+4. Select **Apply reviewed changes**. Changing the field, value or reason requires
+   a new preview. A stale baseline or invalid field rejects the entire change.
+
+The applied batch retains a shared actor and reason, per-object field evidence,
+one revision and one undo step. After a lost acknowledgement, retry **Apply
+reviewed changes** without changing the proposal to retrieve the same operation.
+This action changes metadata only; it does not rename or move payload files.
+
+![Reviewed bulk metadata proposal listing every dossier's before and after title, proposed metadata digest and explicit Apply action](images/bulk-metadata.png)
+
+### Import and review external metadata
+
+1. Save or discard other proposals, then select **Tools > Import metadata**.
+   Download a CSV, XLSX or JSON template for the selected object, or
+   **metadata.xml** for the complete current metadata document.
+2. Select an **External metadata file**, supply an **Editing context / reason**,
+   and select **Retain import proposal**. This retains the exact original bytes
+   and SHA-256 without changing the working XML or adding an undo step.
+3. Review every source row, its identity/conflict status, current **Before**
+   value and imported **After** value. Resolve unknown identities with
+   **Target object** and **Metadata field**. Canonical editor IDs and unique
+   native XML IDs are supported. Choose **Use imported value**, or **Exclude**
+   with a **Reason for exclusion**, for every row. An external baseline conflict
+   is not accepted automatically; protected or unsupported XML changes must be
+   excluded.
+4. Select **Preview reviewed import**. Review every actual change and the
+   proposed metadata digest, then select **Apply reviewed changes**. Changing
+   decisions, mappings, exclusion reasons or the editing reason requires another
+   preview. A late invalid value rejects the entire application.
+5. **Undo** reverses the complete applied import in one step. If all rows are
+   excluded, **Retain review without metadata changes** preserves those
+   decisions without rewriting XML or adding an undo step.
+
+Supported sources are UTF-8 CSV/JSON (a BOM is accepted), text-only single-sheet
+XLSX without formulas, and eCH-0160 XML matching the SIP's trusted profile.
+Table rows use `object_id`, `field`, `value` and optional `before`; JSON is an
+array of these records. CSV templates use JSON-string `value_json`/`before_json`
+columns to preserve exact text without spreadsheet-formula execution. XLSX
+templates contain text cells. Limits are 256 KiB per original source, 2,000
+source rows, 200 changed/unresolved fields and 4 MiB expanded XLSX data.
+
+Application currently supports editable scalar, single-valued fields only,
+not structured/repeated fields, IDs, payload paths, hierarchy or file changes.
+An intervening operation makes a proposal historical: use **Create successor
+for current version** and review it against the current baseline. Original
+sources and prior decisions remain retained in history and METS/PREMIS evidence.
+Use **Download original source** to retrieve the exact submitted file. After a
+lost acknowledgement, retry the unchanged Retain/Apply action to retrieve the
+same operation. None of these preparation decisions is archival acceptance.
+
+![External metadata import showing retained source identities, explicit conflict mapping, protected-field exclusion and reviewed before/after changes](images/metadata-import.png)
 
 ### Work with hierarchy, notes and samples
 
-- Select a suitable parent and open **Hierarchy** to see available object
+- Select a suitable parent and use the navigator's **+** button to see available object
   creation actions. Supply the required fields and reason, **Preview
   creation**, inspect the proposal, then **Create objects**. Available object
   types depend on the selected parent and profile.
-- Where offered, preview a sibling reorder in **Hierarchy** and apply it with a
-  reason. Not all moves, deletions, payload edits or SIP creation are implemented.
+- Drag a row above or below a sibling of the same kind in the navigator.
+  Dropping saves the order immediately, without a preview, note or reason prompt.
+  Use **Move up** or **Move down** in the row's context menu as an alternative.
+  Save or discard other pending changes first.
+  Existing process and activity notes follow their objects when they are reordered,
+  even where the SIP schema does not define an XML ID. Cross-parent moves are not
+  part of this action.
 - Select an object and use **New note** or **Notes** to record object-linked
   preparation context. Notes can be internal or marked as a description
   candidate; they are not published automatically.
 - In **Sample**, choose a count or percentage, enter a size and select
   **Draw**. Select a result to open its dossier, or **Export** the CSV.
-  Sampling is a read-only random aid, not full validation or approval; the
-  current tool does not retain version-bound sampling review evidence.
+  Expand **Criteria and seed** to restrict dossier names/references or supply a
+  reproducible seed; a blank seed produces a new random seed. Percentage sizes
+  round up and the local limit is 500 selections. The result identifies its
+  population, algorithm, seed and exact applied metadata version.
+- **Draw** remains read-only. To retain its exact selections, use **Retain
+  sample** and provide a reason. **Retained samples** reopens earlier draws.
+  Unsaved field proposals must be saved or discarded before retaining a draw.
+- For a retained sample, choose **Review sample**. Record **Checked** or
+  **Issue found** for every selected dossier; issues require a comment. Add a
+  reason and use **Retain review**. Actor, time, reason, selections and per-item
+  outcomes remain in the preparation history. **Cancel** discards only the
+  unapplied review notes.
+- **Download sample evidence** downloads METS/PREMIS-linked preparation evidence
+  through the latest retained review, or the draw if not yet reviewed. CSV
+  export contains the selected names/references, not the complete review
+  evidence. Later edits preserve earlier selections, labels and review notes;
+  a warning identifies differing current metadata. Selecting an old result
+  opens the current object only if that identity still exists.
 
-See the [gap list](gap-list.md#package-preparation) before relying on a
-capability that is disabled or not present.
+![Retained sample review with explicit per-dossier outcomes, issue comments and an editing reason](images/sample-review.png)
+
+Sampling and sample-review notes support preparation. They do not replace full
+validation, an independent review of the selected frozen input, candidate
+authorization or external archival acceptance.
+
+![Edit history showing a sibling move from position 1 to 3, its undo and redo, and a separate note event](images/sibling-reorder-history.png)
+
+To see the exact sequence, click a reorder, undo or redo event in **Edit
+history** and expand **Order details**. The numbered **Before** and **After**
+lists describe that event, not the current navigator order.
+
+![An undo event with Order details expanded to show both numbered sibling sequences](images/sibling-reorder-details.png)
+
+See the [package preparation contract](specification.md#package-preparation-contract)
+for current limits.
 
 ## Inspect validation results
 
@@ -158,6 +406,15 @@ validation** or **Re-run SIP validation** when enabled and authorized.
 Existing submissions may be unassessed. A result belongs to the exact selected
 bytes and is not transferred to a later working version.
 
+Frozen inputs share the same visible label in **Validation** and
+**SIP-Validation**, for example **Snapshot 2 · f06e77de**. The number follows
+the snapshot creation order; the suffix is the start of its retained ID.
+The SIP-Validation panel also repeats the snapshot reason and creation time.
+**Shown in SIP-Validation** marks the matching snapshot card; other cards warn
+when a different artifact is selected. Use **Inspect this version's results**
+to align the panels. Switching lower tool tabs preserves the artifact choice,
+including an explicit choice of **Received SIP**.
+
 When a report is available, filter the package/file table by outcome, severity
 or text, expand findings and select a mapped file where available. Download
 the retained XML or inspect **Previous runs and reports** for history.
@@ -167,23 +424,44 @@ confirmed re-run can create a duplicate. Consult the
 [KOST operations guidance](specification.md#advisory-kost-sip-validation)
 before configuring or troubleshooting the integration.
 
-## Freeze a prepared version
+## Freeze, validate and select a prepared version
 
-![Frozen prepared versions panel showing a retained version, its SHA-256 and download actions](images/frozen-version.png)
+![Inline Validation view showing the working state, a frozen version, internal checks and actions for inspecting results and m:n arrangement](images/frozen-version.png)
 
-Freezing binds the prepared SIP and evidence to an applied working head.
+Open the packager's **Validation** tab. It stays in the editor rather than
+opening an overlay. The workflow is **Working state → Freeze & validate →
+Inspect results → m:n arrangement**.
 
-1. Save or discard pending proposals, and enter an **Editing context / reason**.
-2. Open **Versions / validation**. If there is no applied working head yet,
-   enter a **Checkpoint name** and select **Save checkpoint**.
-3. Select **Freeze working version**. Wait for the version card and check its
-   status and SHA-256.
-4. Use **Download prepared SIP** and **Download METS/PREMIS evidence** when
-   needed. KOST can assess the frozen input separately.
+1. Save or discard pending proposals. The view explains what prevents freezing
+   and offers those actions beside the working-state status.
+2. Enter a **Snapshot reason**, then select **Freeze & validate**. An unchanged
+   submission can be frozen directly: the workbench records its initial
+   checkpoint automatically. Named checkpoints remain available in **Edit
+   history**, but are not a manual prerequisite.
+3. Wait for the frozen-version card. Freezing constructs an immutable prepared
+   SIP, runs ZIP safety, trusted XSD, submitted-checksum, inventory and reference
+   checks, and retains preparation evidence. A failed operation displays an
+   error instead of a completed version. Expand **Version identity and SHA-256**
+   to inspect its exact identity.
+4. Inspect the external status. When configured, SIP-Validation is queued for
+   the frozen version automatically. **Inspect this version's results** selects
+   that exact artifact in the existing lower SIP-Validation panel. External
+   results remain advisory; queued, unavailable, uncertain or missing results
+   are not passes and do not automatically block arrangement.
+5. When satisfied, select **Use this version for m:n arrangement**. The mapping
+   opens with that exact version selected; this does not save the mapping or
+   authorize a candidate. Use **Download prepared SIP** and **Download
+   METS/PREMIS evidence** as needed.
 
-An edit or checkpoint after freezing makes the older version historical.
-Freeze the successor and repeat downstream mapping and review as required.
-Freezing and its receipt checks do not authorize a candidate or accept it.
+Further editing remains possible. Pending proposals or a later applied edit
+make the old results inapplicable to the current working state. After saving
+changes, freeze and validate a successor before using it for arrangement.
+Earlier snapshots remain available under **Previous frozen versions**, collapsed
+by default, with their own results and downloads. Historical versions cannot
+be handed off as the current input. A later checkpoint also creates a new review
+boundary, even when the XML bytes are unchanged.
+
+Freezing and its checks do not authorize a candidate or imply archival acceptance.
 
 ## Arrange, review and build
 
@@ -240,6 +518,16 @@ The transfer's **Evidence** tab displays the persisted event chain. Expand
 history**, frozen-version evidence and review evidence provide additional
 version-specific downloads.
 
+To find a reorder in a frozen version's **Download METS/PREMIS evidence** ZIP:
+
+1. Read `freeze.json` to find the working operation ID bound to the snapshot.
+2. Open `preparation.zip` inside the download, then open its
+   `metadata/premis.xml`. Search for the operation ID or `structure-reorder`.
+   The event detail contains the full `before_order` and `after_order` arrays
+   of stable object IDs. For a more readable view, open the inner `history.json`.
+3. Use the outer `metadata/premis.xml` for the freeze event itself. It does not
+   repeat the inner edit history.
+
 In **AIP profile**, record archive identity, designated community and
 knowledge base; preserve supporting documentation and import structured
 preservation-context JSON when appropriate. **Check institutional AIP gate**
@@ -254,7 +542,7 @@ unassessed. The shipped policy is not institutionally approved. See the
 | Workbench or login page unavailable | Check that Podman Machine is running on Windows, then use the Windows launcher and its readiness messages. See [local operations](specification.md#local-development-and-checks). |
 | Upload is rejected | Check the selected profile, ZIP size and displayed findings. Do not relabel or upgrade a SIP to bypass validation. |
 | A control is disabled | Check your role, transfer state, pending changes, required reason, current version and whether an operation is still running. |
-| Freeze is disabled | Save or discard proposals, supply a reason, create an applied edit or checkpoint, and check whether the current head is already frozen. |
+| Freeze & validate is disabled | Read the explanation beside the action: wait for an operation, save or discard proposals, supply a snapshot reason, or use the already-frozen current version. An unchanged submission needs no manual edit or checkpoint. |
 | Review or mapping is stale | Reload, select the current frozen input, save the mapping again and obtain a fresh independent review and authorization. |
 | SIP Validator is unavailable or a submission is uncertain | Inspect the artifact status and service configuration; do not treat an error or missing report as a pass. Review the uncertain-submission warning before a re-run. |
 | A change or save reports an error | Read the message and retained history before retrying. Do not assume a failed response means no operation was recorded. |

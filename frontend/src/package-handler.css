@@ -4,3 +4,8 @@
 .handler-heading h3{margin:4px 0}.handler-toolbar{margin:8px 0;gap:8px}.handler-toolbar .actions button,.handler-toolbar select,.pane-tabs button{padding:6px 8px}.handler-toolbar label{font-size:10px}.handler-heading .eyebrow{font-size:8px}
 :host{display:flex;flex:1;min-width:0;min-height:0}.handler.working-mode{display:flex;flex:1;min-height:0;min-width:0;flex-direction:column}.working-mode>.handler-heading,.working-mode>.pane-tabs,.working-mode>.handler-toolbar{display:none}.working-mode>archive-metadata-editor{display:flex;flex:1;min-height:0;min-width:0}
 .handler{width:100%;min-width:0}.handler.working-mode{overflow:auto}.handler.working-mode>archive-metadata-editor{min-height:440px;flex-shrink:0}
+.content-preview-dialog{width:min(1100px,calc(100vw - 32px));max-height:90dvh;overflow:auto;padding:16px;border:1px solid var(--line-dark);background:var(--paper);color:inherit}
+.content-preview-dialog::backdrop{background:#102c2466}
+.preview-heading{display:flex;align-items:start;gap:12px;justify-content:space-between}
+.preview-heading h3{margin:0;overflow-wrap:anywhere}
+.content-preview-dialog [role=alert]{color:#8f251b;white-space:pre-wrap}

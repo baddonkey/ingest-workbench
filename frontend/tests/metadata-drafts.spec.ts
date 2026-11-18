@@ -3,8 +3,152 @@ import { test, expect } from '@playwright/test';
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import type {MetadataWorkspace} from '../src/metadata-editor.types';
 
 test.use({ actionTimeout: 20_000 });
+
+for(const group of [
+  {label:'additional metadata',kind:'ordnungssystem',tag:'zusatzDaten',edit:'Edit additional metadata...',add:'+ Characteristic',empty:'No characteristics'},
+  {label:'file properties',kind:'datei',tag:'eigenschaft',edit:'Edit file properties...',add:'+ Property',empty:'No properties'},
+]){
+test(group.label+' dialog stages, cancels and persists ordered characteristics',async({page})=>{
+  const api=process.env['ARCHIVE_BROWSER_API']||'http://localhost:8000';
+  if(api!=='http://localhost:8000')await page.route('http://localhost:8000/api/**',route=>route.continue({url:route.request().url().replace('http://localhost:8000',api)}));
+  const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+  let token='';page.on('response',async response=>{if(response.url().endsWith('/protocol/openid-connect/token')&&response.ok())token=(await response.json()).access_token;});
+  await page.goto('/');await page.getByRole('textbox',{name:'Username or email'}).fill('operator');await page.getByRole('textbox',{name:'Password',exact:true}).fill('operator-local-only');await page.getByRole('button',{name:'Sign In',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Refresh',exact:true})).toBeEnabled();
+  const title='Additional metadata '+randomUUID();await page.getByRole('textbox',{name:'New transfer title'}).fill(title);await page.getByRole('button',{name:'Create',exact:true}).click();
+  await page.locator('input[type=file]').first().setInputFiles(resolve('..','fixtures','reference-1.3.zip'));await page.getByRole('button',{name:'Inspect & add SIP'}).click();await expect(page.getByText('Internal checks passed',{exact:true})).toBeVisible();
+  const loaded=page.waitForResponse(response=>response.url().endsWith('/preparation')&&response.ok());
+  await page.getByRole('button',{name:'Open Ingest Packager',exact:true}).click();
+  const document:MetadataWorkspace=await (await loaded).json(),system=document.nodes.find(node=>node.kind===group.kind && document.navigation.classification.some(row=>row.object_id===node.id))!;
+  const transfers=await fetch(api+'/api/transfers',{headers:{Authorization:'Bearer '+token}}),transfer=(await transfers.json()).find((item:{title:string})=>item.title===title);
+  const preparation='/api/transfers/'+transfer.id+'/sips/'+document.sip_id+'/preparation';
+  async function getPreparation():Promise<MetadataWorkspace>{const response=await fetch(api+preparation,{headers:{Authorization:'Bearer '+token}});expect(response.ok).toBeTruthy();return response.json();}
+  const savedField=(doc:MetadataWorkspace)=>doc.nodes.find(node=>node.id===system.id)!.fields.find(field=>field.tag===group.tag)!;
+  const editor=page.getByRole('region',{name:'Versioned metadata editor'});
+  await editor.locator('.classification-pane [data-object-id="'+system.id+'"]').click();
+  await expect(editor.locator('.record-heading').filter({hasText:system.title})).toBeVisible();
+  if(group.kind==='datei'){
+    await expect.poll(()=>editor.locator('.working-field:visible').evaluateAll(fields=>fields.map(field=>field.getAttribute('data-field-tag')))).toEqual(['name','id']);
+    await expect(editor.getByRole('textbox',{name:'ID',exact:true})).toHaveValue(system.source_id!);await expect(editor.getByRole('textbox',{name:'ID',exact:true})).toHaveAttribute('readonly','');
+    await expect(editor.locator('[data-field-tag="name"] textarea')).toBeDisabled();
+  }
+  const field=editor.locator('.working-field[data-field-tag="'+group.tag+'"]'),edit=field.getByRole('button',{name:group.edit,exact:true}),summary=field.getByRole('textbox');
+  await expect(field).toBeHidden();await editor.locator('.additional-toggle').click();await expect(field).toBeVisible();
+  if(group.kind==='datei'){
+    await expect.poll(()=>editor.locator('.working-field:visible').evaluateAll(fields=>fields.map(field=>field.getAttribute('data-field-tag')))).toEqual(['name','id','eigenschaft','originalName','pruefalgorithmus','pruefsumme']);
+    await expect(editor.getByRole('combobox',{name:'Checksum algorithm',exact:true})).toBeDisabled();await expect(editor.getByRole('textbox',{name:'Checksum',exact:true})).toBeDisabled();
+    if(process.env['ARCHIVE_UPDATE_DOCS']==='true'){
+      await page.setViewportSize({width:1600,height:1100});await page.screenshot({path:resolve('..','docs','images','file-metadata.png'),fullPage:true});
+    }
+  }
+  expect(await field.evaluate(element=>!!element.previousElementSibling?.classList.contains('additional-toggle'))).toBe(true);
+  await expect(summary).toHaveAttribute('readonly','');
+  const originalSummary=await summary.inputValue(),dialog=page.getByRole('dialog',{name:group.edit,exact:true});
+  async function clearProperties(){
+    const remove=dialog.getByRole('button',{name:'Remove entry',exact:true});let count=await remove.count();
+    while(count){await remove.first().click();await expect(remove).toHaveCount(--count);}
+  }
+  await edit.click();
+  await clearProperties();
+  await dialog.getByRole('button',{name:group.add,exact:true}).click();
+  await dialog.getByRole('textbox',{name:'Value',exact:true}).fill('A & B <literal>');
+  const nameBox=await dialog.getByRole('textbox',{name:'Name',exact:true}).boundingBox(),valueBox=await dialog.getByRole('textbox',{name:'Value',exact:true}).boundingBox(),addBox=await dialog.getByRole('button',{name:group.add,exact:true}).boundingBox(),dialogBox=await dialog.boundingBox();
+  expect(dialogBox!.width).toBeLessThanOrEqual(520);expect(Math.abs(nameBox!.width-valueBox!.width)).toBeLessThanOrEqual(1);expect(nameBox!.y).toBe(valueBox!.y);expect(nameBox!.height).toBe(valueBox!.height);expect(addBox!.width).toBeGreaterThan(nameBox!.width+valueBox!.width);
+  await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog).toBeVisible();
+  await dialog.getByRole('textbox',{name:'Name',exact:true}).fill('Collection');
+  await dialog.getByRole('button',{name:'Cancel',exact:true}).click();await expect(summary).toHaveValue(originalSummary);
+  await expect(editor.locator('.reference-toolbar').getByRole('button',{name:'Save',exact:true})).toBeDisabled();
+  await edit.click();
+  await clearProperties();
+  await dialog.getByRole('button',{name:group.add,exact:true}).click();await dialog.getByRole('textbox',{name:'Name',exact:true}).fill('Collection');await dialog.getByRole('textbox',{name:'Value',exact:true}).fill('A & B <literal>');
+  await dialog.getByRole('button',{name:group.add,exact:true}).click();await dialog.getByRole('textbox',{name:'Name',exact:true}).nth(1).fill('Empty value');
+  const up=dialog.getByRole('button',{name:'Move up',exact:true}),down=dialog.getByRole('button',{name:'Move down',exact:true});
+  await expect(up.first()).toBeDisabled();await expect(down.last()).toBeDisabled();
+  await down.first().click();
+  await expect(dialog.getByRole('textbox',{name:'Name',exact:true}).first()).toHaveValue('Empty value');
+  await down.first().click();
+  await expect(dialog.getByRole('textbox',{name:'Name',exact:true}).first()).toHaveValue('Collection');
+  await up.last().click();
+  if(process.env['ARCHIVE_UPDATE_DOCS']==='true' && group.kind==='ordnungssystem'){
+    await page.setViewportSize({width:1600,height:1100});
+    await dialog.screenshot({path:resolve('..','docs','images','additional-metadata.png')});
+  }
+  const expectedSummary='Empty value: \nCollection: A & B <literal>';
+  await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog).toBeHidden();await expect(summary).toHaveValue(expectedSummary);
+  expect((await getPreparation()).history).toHaveLength(document.history.length);
+  await edit.click();await down.first().click();await page.keyboard.press('Escape');
+  await expect(summary).toHaveValue(expectedSummary);
+  async function save(reason:string){
+    await editor.locator('.workspace-status input').fill('');
+    await editor.locator('.reference-toolbar').getByRole('button',{name:'Save',exact:true}).click();
+    const reasonDialog=editor.getByRole('dialog',{name:'Save metadata changes',exact:true});await reasonDialog.getByRole('textbox',{name:'Editing context / reason',exact:true}).fill(reason);
+    const saved=page.waitForResponse(response=>response.url().endsWith(preparation+'/commands')&&response.request().method()==='POST');
+    await reasonDialog.getByRole('button',{name:'Save',exact:true}).click();const response=await saved;expect(response.ok(),await response.text()).toBeTruthy();
+    await expect(reasonDialog).toBeHidden();await expect(editor.locator('.workspace-status input')).toBeEnabled();await expect(editor.locator('.reference-toolbar').getByRole('button',{name:'Save',exact:true})).toBeDisabled();
+  }
+  await save('Record additional characteristics from source review.');
+  const persisted=await getPreparation(),values=savedField(persisted).values!,properties=group.tag==='eigenschaft'?values:values[0].children['merkmal'];
+  expect(properties.map(row=>({name:row.attributes['name'],value:row.text}))).toEqual([{name:'Empty value',value:''},{name:'Collection',value:'A & B <literal>'}]);
+  expect(persisted.source_sha256).toBe(document.source_sha256);
+  if(group.kind==='datei'){
+    const savedNode=persisted.nodes.find(node=>node.id===system.id)!;expect(savedNode.source_id).toBe(system.source_id);
+    for(const tag of ['name','pruefalgorithmus','pruefsumme'])expect(savedNode.fields.find(field=>field.tag===tag)!.values).toEqual(system.fields.find(field=>field.tag===tag)!.values);
+  }
+  await editor.locator('.menubar summary').filter({hasText:/^Package$/}).click();
+  const reloaded=page.waitForResponse(response=>response.url().endsWith(preparation)&&response.ok());await editor.getByRole('button',{name:'Reload',exact:true}).click();await reloaded;await expect(summary).toHaveValue(expectedSummary);
+  await edit.click();await expect(dialog.getByRole('textbox',{name:'Name',exact:true})).toHaveCount(2);
+  await clearProperties();
+  await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog).toBeHidden();await expect(summary).toHaveValue(group.empty);
+  await save('Remove additional characteristics after review.');expect(savedField(await getPreparation()).values).toEqual([]);
+  await page.getByRole('button',{name:'Sign out',exact:true}).click();await page.getByRole('textbox',{name:'Username or email'}).fill('auditor');await page.getByRole('textbox',{name:'Password',exact:true}).fill('auditor-local-only');await page.getByRole('button',{name:'Sign In',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Refresh',exact:true})).toBeEnabled();await page.locator('button.transfer').filter({hasText:title}).click();await page.getByRole('button',{name:'Open Ingest Packager',exact:true}).click();
+  await editor.locator('.classification-pane [data-object-id="'+system.id+'"]').click();await expect(editor.locator('.record-heading').filter({hasText:system.title})).toBeVisible();await editor.locator('.additional-toggle').click();await expect(edit).toBeDisabled();
+  expect(errors).toEqual([]);
+});
+}
+
+test('adds and saves an absent optional metadata group',async({page})=>{
+  const api=process.env['ARCHIVE_BROWSER_API']||'http://localhost:8000';
+  if(api!=='http://localhost:8000')await page.route('http://localhost:8000/api/**',route=>route.continue({url:route.request().url().replace('http://localhost:8000',api)}));
+  await page.goto('/');
+  await page.getByRole('textbox',{name:'Username or email'}).fill('operator');
+  await page.getByRole('textbox',{name:'Password',exact:true}).fill('operator-local-only');
+  await page.getByRole('button',{name:'Sign In',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Refresh',exact:true})).toBeEnabled();
+  await page.getByRole('textbox',{name:'New transfer title'}).fill('Optional metadata group '+randomUUID());
+  await page.getByRole('button',{name:'Create',exact:true}).click();
+  await page.getByRole('combobox',{name:'Profile',exact:true}).selectOption({label:'1.0'});
+  await page.locator('input[type=file]').first().setInputFiles(resolve('..','fixtures','corpus','SIP_20120628_eCH1.0F_BfB.zip'));
+  await page.getByRole('button',{name:'Inspect & add SIP'}).click();
+  await expect(page.getByText('Internal checks passed',{exact:true})).toBeVisible();
+  const loaded=page.waitForResponse(response=>response.url().endsWith('/preparation')&&response.ok());
+  await page.getByRole('button',{name:'Open Ingest Packager',exact:true}).click();
+  const response=await loaded, document:MetadataWorkspace=await response.json();
+  const submission=document.nodes.find(node=>node.kind==='ablieferung')!;
+  expect(submission.fields.find(field=>field.tag==='entstehungszeitraum')!.values).toEqual([]);
+  const editor=page.getByRole('region',{name:'Versioned metadata editor'});
+  await editor.locator('.record-heading[data-object-id="'+submission.id+'"]').click();
+  const field=editor.locator('.working-field[data-field-tag="entstehungszeitraum"]');
+  if(!await field.isVisible())await editor.locator('.additional-toggle').click();
+  const add=field.getByRole('button',{name:'Add value',exact:true}), dates=field.getByRole('textbox',{name:'Date',exact:true});
+  await add.click();
+  await expect(add).toHaveCount(0);
+  await dates.nth(0).fill('2000');await dates.nth(1).fill('2001-12-31');
+  await editor.locator('.reference-toolbar').getByRole('button',{name:'Save',exact:true}).click();
+  const dialog=editor.getByRole('dialog',{name:'Save metadata changes',exact:true});
+  await dialog.getByRole('textbox',{name:'Editing context / reason',exact:true}).fill('Record the reviewed creation date range.');
+  const saved=page.waitForResponse(result=>result.url()===response.url()+'/commands'&&result.request().method()==='POST');
+  await dialog.getByRole('button',{name:'Save',exact:true}).click();
+  const result=await saved;expect(result.ok(),await result.text()).toBeTruthy();
+  await expect(dialog).toBeHidden();
+  await editor.locator('.menubar summary').filter({hasText:/^Package$/}).click();
+  const reloaded=page.waitForResponse(result=>result.url()===response.url()&&result.ok());
+  await editor.getByRole('button',{name:'Reload',exact:true}).click();await reloaded;
+  await expect(dates.nth(0)).toHaveValue('2000');await expect(dates.nth(1)).toHaveValue('2001-12-31');
+});
 
 test('metadata proposals save, survive reload, reject stale writes and retain discarded evidence', async ({ page }) => {
   const api = process.env['ARCHIVE_BROWSER_API'] || 'http://localhost:8000';

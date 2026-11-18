@@ -23,4 +23,8 @@ export interface PackageNodeDetail {
   xml: string | null; xml_truncated?: boolean; file: PackageNode | null; input_sha256: string;
   preview: { available: boolean; text?: string; reason?: string; truncated?: boolean; byte_limit?: number } | null;
   edit_fields: EditableField[];
+  rich_preview?: RichPreviewPolicy;
 }
+export interface RichPreviewPolicy {available:boolean;kind?:'image'|'pdf'|'audio'|'video';mime?:string;byte_limit?:number;width?:number;height?:number;reason?:string}
+export interface PreviewImageRequest {buffer:ArrayBuffer;mime:'image/tiff'|'image/jp2';width:number;height:number;wasmUrl:string}
+export type PreviewImageResult = {width:number;height:number;pixels:Uint8ClampedArray<ArrayBuffer>}|{error:string};

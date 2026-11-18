@@ -16,6 +16,11 @@ VOCABULARY = 'urn:ingest-workbench:preparation-events:1'
 def bundle(service, body, sip):
     records = [r for r in body['metadata_operations'] if r['sip_id']==sip['id']]
     payload = {'original.zip':service.blob(sip['sha256'])}
+    from . import metadata_imports
+    from . import content_editing
+    imported=metadata_imports.evidence_sources(records)
+    payload.update(imported|content_editing.evidence_sources(records,service.blob))
+    archives={digest:service.blob(digest) for digest in content_editing.archive_digests(records)}
     from . import preparation_notes as notes
     if any(r['kind'] in notes.KINDS for r in records):
         payload['notes.json'] = canonical(notes.document(records))
@@ -37,15 +42,16 @@ def bundle(service, body, sip):
                 payload['legacy/'+draft['id']+'.json'] = service.blob(draft['changes_sha256'])
                 payload['legacy/'+draft['id']+'.xml'] = service.blob(draft['metadata_sha256'])
     premis = ET.Element('{'+P+'}premis',nsmap={'premis':P,'xsi':I},version='3.0')
-    objects = {sip['sha256']:payload['original.zip'],**versions}
+    objects = {sha(data):data for data in imported.values()} | archives | {sip['sha256']:payload['original.zip'],**versions}
+    import_formats={sha(data):path.rsplit('.',1)[-1].upper() for path,data in imported.items()}
     for digest,data in objects.items():
         obj = el(premis,P,'object',**{'{'+I+'}type':'premis:file'})
         identifier(obj,'objectIdentifier','urn:sha256:'+digest)
         char = el(obj,P,'objectCharacteristics');el(char,P,'compositionLevel',0)
         fix = el(char,P,'fixity');el(fix,P,'messageDigestAlgorithm','SHA-256');el(fix,P,'messageDigest',digest)
         el(char,P,'size',len(data))
-        fmt = el(char,P,'format');el(el(fmt,P,'formatDesignation'),P,'formatName','ZIP' if digest==sip['sha256'] else 'XML')
-        if digest!=sip['sha256']:relation(obj,'derivation','metadata of source SIP','urn:sha256:'+sip['sha256'])
+        fmt = el(char,P,'format');el(el(fmt,P,'formatDesignation'),P,'formatName','ZIP' if digest==sip['sha256'] or digest in archives else 'XML' if digest in versions else import_formats[digest])
+        if digest in versions:relation(obj,'derivation','metadata of source SIP','urn:sha256:'+sip['sha256'])
     for record in records:
         ev = el(premis,P,'event');identifier(ev,'eventIdentifier',record['id'])
         el(ev,P,'eventType',VOCABULARY+':'+record['kind']);el(ev,P,'eventDateTime',record['created'])
@@ -57,7 +63,10 @@ def bundle(service, body, sip):
            'predecessor_id':record['predecessor_id']}).decode())
         outcome = el(ev,P,'eventOutcomeInformation');el(outcome,P,'eventOutcome','success')
         identifier(ev,'linkingAgentIdentifier',record['actor'])
-        for digest in dict.fromkeys((sip['sha256'],record['before_metadata_sha256'],record['after_metadata_sha256'])):
+        source_digest=metadata_imports.operation_source(record,records)
+        content_digests=([record['changes']['content'][key] for key in ('before_archive_sha256','after_archive_sha256')]
+                         if record['kind']==content_editing.KIND else [])
+        for digest in dict.fromkeys([sip['sha256'],record['before_metadata_sha256'],record['after_metadata_sha256']]+([source_digest] if source_digest else [])+content_digests):
             identifier(ev,'linkingObjectIdentifier','urn:sha256:'+digest)
     for actor in sorted({r['actor'] for r in records}):
         agent = el(premis,P,'agent');identifier(agent,'agentIdentifier',actor)
@@ -103,6 +112,12 @@ def verify(data, records, sip, schemas=None):
     index=json.loads(payload['history.json'])
     expected=[{k:v for k,v in r.items() if k!='evidence_sha256'} for r in records]
     from . import preparation_notes as notes
+    from . import metadata_imports
+    from . import content_editing
+    imported=metadata_imports.evidence_sources(records)
+    if {path:content for path,content in payload.items() if path.startswith('imports/')}!=imported:
+        raise PackageError('Metadata import source evidence differs from retained originals')
+    content_archives=content_editing.evidence_archives(records,payload)
     expected_notes = canonical(notes.document(records)) if any(r['kind'] in notes.KINDS for r in records) else None
     if payload.get('notes.json') != expected_notes:
         raise PackageError('Preparation note snapshot differs from retained history')
@@ -128,13 +143,33 @@ def verify(data, records, sip, schemas=None):
         raise PackageError('Preparation METS current-version binding mismatch')
     if [r.get('{'+X+'}href') for r in mets.findall('m:amdSec/m:digiprovMD/m:mdRef',namespaces)]!=['premis.xml']:
         raise PackageError('Preparation METS provenance binding mismatch')
-    expected_objects={sip['sha256']}|{r[k] for r in records for k in ('before_metadata_sha256','after_metadata_sha256')}
+    expected_contents={sha(content):content for content in imported.values()}
+    expected_contents.update(content_archives)
+    expected_contents.update({sip['sha256']:payload.get('original.zip')})
+    expected_contents.update({record[key]:payload.get('versions/'+record[key]+'.xml')
+                             for record in records for key in ('before_metadata_sha256','after_metadata_sha256')})
+    if schemas is not None and any(r.get('version')==10 for r in records):
+        from . import editor_fields as fields, hierarchy_editing as hierarchy
+        identities=fields.identity_snapshots(records)
+        info=fields.schema(schemas,sip)
+        for record in records:
+            if record.get('version')==10:
+                before,after=(expected_contents[record[k]] for k in ('before_metadata_sha256','after_metadata_sha256'))
+                if before is None or after is None:
+                    raise PackageError('Missing editor identity XML snapshot')
+                hierarchy.verify(before,after,record,info,schemas,sip,identities[record['id']][0])
+    if schemas is not None and content_archives:
+        versions=content_editing.snapshots(records,sip['sha256'])
+        for record in records:
+            if record['kind']==content_editing.KIND:
+                content_editing.verify(record,versions[record['id']][0],expected_contents.__getitem__,sip,schemas)
+    expected_objects=set(expected_contents)
     objects=premis.findall('p:object',namespaces)
     actual_objects=set()
     for obj in objects:
         ident=obj.findtext('p:objectIdentifier/p:objectIdentifierValue',namespaces=namespaces)
         digest=ident.removeprefix('urn:sha256:') if ident else ''
-        content=payload.get('original.zip' if digest==sip['sha256'] else 'versions/'+digest+'.xml')
+        content=expected_contents.get(digest)
         if (digest in actual_objects or digest not in expected_objects or content is None
                 or obj.get('{'+I+'}type')!='premis:file'
                 or obj.findtext('p:objectCharacteristics/p:fixity/p:messageDigestAlgorithm',namespaces=namespaces)!='SHA-256'
@@ -160,7 +195,13 @@ def verify(data, records, sip, schemas=None):
         if detail!={k:record[k] for k in ('changes_sha256','actor','reason','changes','before_metadata_sha256','after_metadata_sha256','predecessor_id')}:
             raise PackageError('Preparation PREMIS before/after evidence differs from journal')
         linked={e.findtext('p:linkingObjectIdentifierValue',namespaces=namespaces) for e in ev.findall('p:linkingObjectIdentifier',namespaces)}
-        if linked!={'urn:sha256:'+d for d in (sip['sha256'],record['before_metadata_sha256'],record['after_metadata_sha256'])}:
+        source_digest=metadata_imports.operation_source(record,records)
+        expected_linked={'urn:sha256:'+d for d in (sip['sha256'],record['before_metadata_sha256'],record['after_metadata_sha256'])}
+        if source_digest:expected_linked.add('urn:sha256:'+source_digest)
+        if record['kind']==content_editing.KIND:
+            expected_linked.update('urn:sha256:'+record['changes']['content'][key]
+                                   for key in ('before_archive_sha256','after_archive_sha256'))
+        if linked!=expected_linked:
             raise PackageError('Preparation PREMIS object scope mismatch')
         for digest in (record['before_metadata_sha256'],record['after_metadata_sha256']):
             if sha(payload.get('versions/'+digest+'.xml',b''))!=digest:raise PackageError('Preparation snapshot fixity mismatch')

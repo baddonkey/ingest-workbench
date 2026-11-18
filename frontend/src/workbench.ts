@@ -5,6 +5,7 @@ import { KEYCLOAK } from './identity';
 import { ArchiveApi } from './archive-api';
 import { PackageHandler } from './package-handler';
 import { PreparedArrangement } from './prepared-arrangement';
+import { PreparedSelection } from './metadata-editor.types';
 import {version} from '../package.json';
 export { KEYCLOAK } from './identity';
 
@@ -62,10 +63,10 @@ interface TransferPage {items:Transfer[];total:number;matched:number;next_offset
         <form class="upload" (ngSubmit)="upload()"><h3>Add an eCH-0160 SIP</h3><p>Validate against the selected trusted schema. No automatic profile conversion.</p><div class="inline"><label>Profile<select name="profile" [(ngModel)]="profile"><option>1.0</option><option>1.1</option><option>1.2.0</option><option>1.3.0</option></select></label><label class="file-label">SIP ZIP<input type="file" accept=".zip" (change)="chooseFile($event)"></label></div><button [disabled]="busy() || !file || !['RECEIVED','INSPECTED'].includes(t.state)">Inspect & add SIP</button><small>64 MiB compressed limit in this local reference implementation</small></form>
         @for(s of t.sips;track s.id){<article class="sip"><div class="card-heading"><h3>eCH-0160 {{s.profile}}</h3><span class="badge valid">Internal checks passed</span></div><dl class="sip-source"><div><dt>Original ZIP filename</dt><dd>{{s.original_filename || 'Not recorded'}}</dd></div>@if(sipRoot(s);as root){<div><dt>SIP folder in ZIP</dt><dd>{{root}}</dd></div>}</dl><p class="mono">{{s.sha256}}</p><p>{{fileCount(s)}} payload files</p><div class="actions"><button class="secondary" (click)="handlerSipId=s.id;setTab('handler')">Open Ingest Packager</button></div>@for(u of s.units;track u.id){<details><summary>{{u.title}} <span>{{u.files.length}} files</span></summary><pre>{{u.metadata_xml}}</pre></details>}</article>}
       }
-      @if(tab==='handler'){<archive-package-handler [transferId]="t.id" [revision]="t.revision" [sips]="t.sips" [events]="t.events" [openSipId]="handlerSipId" (arrange)="setTab('mapping')" (closed)="setTab('overview')" (about)="aboutDialog.showModal()" (changed)="refresh()" (pendingChanges)="handlerPending=$event" (working)="handlerWorking=$event"/>}
+      @if(tab==='handler'){<archive-package-handler [transferId]="t.id" [revision]="t.revision" [sips]="t.sips" [events]="t.events" [openSipId]="handlerSipId" (arrange)="setTab('mapping')" (arrangePrepared)="arrangePrepared($event)" (closed)="setTab('overview')" (about)="aboutDialog.showModal()" (changed)="refresh()" (pendingChanges)="handlerPending=$event" (working)="handlerWorking=$event"/>}
       @if(tab==='mapping'){
         <h3>Define archival boundaries</h3>
-        @if(hasDrafts(t)){<archive-prepared-arrangement [transfer]="t" (changed)="refresh()" (working)="arrangementWorking=$event" (openSip)="handlerSipId=$event;setTab('handler')"/>}@else{
+        @if(hasDrafts(t)){<archive-prepared-arrangement [transfer]="t" [initialSelection]="preparedSelection" (selectionConsumed)="preparedSelection=null" (changed)="refresh()" (working)="arrangementWorking=$event" (openSip)="handlerSipId=$event;setTab('handler')"/>}@else{
         <p>Assign each top-level dossier exactly once. Use the same target label to merge dossiers from multiple SIPs. Nested structures stay together.</p>
         @for(s of t.sips;track s.id){@for(u of s.units;track u.id){<div class="mapping-row"><div><b>{{u.title}}</b><small>eCH {{s.profile}} · {{u.id}} · {{u.files.length}} files</small></div><label>Target AIP<input [(ngModel)]="assignments[s.id+':'+u.id]" placeholder="Target label"></label></div>}}
         <label for="reason">Reason for restructuring</label><textarea id="reason" [(ngModel)]="reason" rows="2" placeholder="Describe the archival rationale"></textarea>
@@ -112,6 +113,15 @@ export class AppComponent {
   private transferList=viewChild<ElementRef<HTMLDivElement>>('transferList');
   private pageGeneration=0;
   handlerSipId='';handlerPending=0;handlerWorking=false;arrangementWorking=false;
+  preparedSelection:PreparedSelection|null=null;
+  async arrangePrepared(selection:PreparedSelection){
+    const transfer=this.current();
+    if(!transfer || this.busy() || !this.canLeaveHandler())return;
+    await this.run(async()=>{
+      const current=await this.request<Transfer>('/api/transfers/'+transfer.id);
+      this.update(current);this.preparedSelection=selection;this.setTab('mapping');
+    });
+  }
   transfers=signal<Transfer[]>([]);current=signal<Transfer|null>(null);busy=signal(false);error=signal('');
   workspaceOpen=signal(false);search=signal('');
   totalTransfers=signal(0);matchedTransfers=signal(0);nextOffset=signal<number|null>(0);
@@ -152,7 +162,7 @@ export class AppComponent {
   }
   setTab(next:string){if(next!==this.tab && (this.tab==='handler'||this.arrangementWorking) && !this.canLeaveHandler())return false;this.tab=next;return true;}
   backToTransfers(){if(this.workspaceOpen() && (this.tab==='handler'||this.arrangementWorking) && !this.canLeaveHandler())return;const wasOpen=this.workspaceOpen();this.current.set(null);this.tab='overview';this.workspaceOpen.set(false);this.sidebarOpen.set(false);this.file=null;this.error.set('');if(wasOpen)void this.reloadTransfers();}
-  openTransfer(t:Transfer){this.select(t);this.tab='overview';this.workspaceOpen.set(true);this.sidebarOpen.set(false);}
+  openTransfer(t:Transfer){this.preparedSelection=null;this.select(t);this.tab='overview';this.workspaceOpen.set(true);this.sidebarOpen.set(false);}
   logout(){if(this.canLeaveHandler())void this.kc.logout({redirectUri:window.location.origin+'/'});}
   async request<T>(path:string,options:RequestInit={}):Promise<T>{
     return this.api.request<T>(path,options);

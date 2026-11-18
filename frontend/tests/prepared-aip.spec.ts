@@ -34,7 +34,8 @@ test('authorize and build evidence-bound prepared AIPs with lost responses and h
   await editor.getByRole('textbox',{name:'Editing context / reason',exact:true}).fill('Describe the exact metadata selected for independent preparation review.');
   await editor.locator('[data-field-tag="titel"]').getByRole('textbox',{name:'Title',exact:true}).fill('Selected dossier for frozen review');
   await editor.locator('.reference-toolbar').getByRole('button',{name:'Save',exact:true}).click();
-  await editor.getByRole('button',{name:'Freeze working version',exact:true}).click();
+  await editor.locator('.editor-type-tabs').getByRole('button',{name:'Validation',exact:true}).click();
+  await editor.getByRole('button',{name:'Freeze & validate',exact:true}).click();
   await expect(editor.locator('.prepared-version')).toHaveCount(1);
   const prepared=(await get(base)).prepared_inputs[0];
   await page.getByRole('button',{name:'m:n mapping',exact:true}).click();
@@ -87,6 +88,7 @@ test('authorize and build evidence-bound prepared AIPs with lost responses and h
   await editor.getByRole('textbox',{name:'Editing context / reason',exact:true}).fill('Successor checkpoint requires a fresh selected-input review.');
   let releaseCheckpoint!:()=>void;const checkpointResponse=new Promise<void>(resolve=>releaseCheckpoint=resolve);
   await page.route('http://localhost:8000'+base+'/sips/'+sip.id+'/preparation/commands',async route=>{const response=await route.fetch({url:api+base+'/sips/'+sip.id+'/preparation/commands'});expect(response.ok()).toBeTruthy();await checkpointResponse;await route.fulfill({response});},{times:1});
+  await editor.locator('.reference-toolbar').getByRole('button',{name:/^Edit history/}).click();
   await editor.getByRole('textbox',{name:'Checkpoint name',exact:true}).fill('Successor after preparation review');await editor.getByRole('button',{name:'Save checkpoint',exact:true}).click();
   await expect(page.getByRole('button',{name:'m:n mapping',exact:true})).toBeDisabled();releaseCheckpoint();
   await expect(editor.getByRole('textbox',{name:'Checkpoint name',exact:true})).toHaveValue('');

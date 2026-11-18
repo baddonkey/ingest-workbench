@@ -4,7 +4,7 @@ import {FormsModule} from '@angular/forms';
 import {ArchiveApi} from './archive-api';
 import {KEYCLOAK} from './identity';
 import {EditorLanguage,editorText} from './metadata-editor.locale';
-import {PreparationNote} from './metadata-editor.types';
+import {PreparationNote,PreparedSelection} from './metadata-editor.types';
 import {arrangementText} from './prepared-arrangement.locale';
 
 interface Unit {id:string;title:string;files:string[];metadata_xml:string}
@@ -18,6 +18,7 @@ interface Workspace {input_notes:{sip_id:string;prepared_id:string|null;notes:(P
 @Component({selector:'archive-prepared-arrangement',standalone:true,imports:[CommonModule,FormsModule],templateUrl:'./prepared-arrangement.html',styleUrl:'./prepared-arrangement.css'})
 export class PreparedArrangement implements OnChanges,OnDestroy {
   transfer=input.required<Transfer>();changed=output<void>();working=output<boolean>();openSip=output<string>();
+  initialSelection=input<PreparedSelection|null>(null);selectionConsumed=output<void>();
   private api=inject(ArchiveApi);private identity=inject(KEYCLOAK);private generation=0;private activeId='';
   private retry:{signature:string;request:object}|null=null;
   private authorizationRetry:{signature:string;request:object}|null=null;
@@ -43,6 +44,15 @@ export class PreparedArrangement implements OnChanges,OnDestroy {
       for(const target of plan?.targets||[])for(const u of target.units)this.assignments[u.sip_id+':'+u.unit_id]=target.label;
       this.retry=null;
       this.authorizationRetry=null;
+      const selection=this.initialSelection();
+      if(selection){
+        this.selectionConsumed.emit();
+        const choice=doc.choices.find(c=>c.sip_id===selection.sip_id);
+        if(!choice?.frozen.some(f=>f.id===selection.prepared_id && f.current))
+          throw new Error('The selected snapshot is no longer current. Reopen Validation and freeze the latest working state.');
+        this.loading.set(false);
+        await this.choose(selection.sip_id,selection.prepared_id);
+      }
     }catch(error){if(generation===this.generation)this.error.set(error instanceof Error?error.message:'Arrangement could not be loaded');}
     finally{if(generation===this.generation)this.loading.set(false);}
   }

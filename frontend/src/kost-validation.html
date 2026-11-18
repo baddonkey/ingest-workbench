@@ -1,15 +1,16 @@
 <section class="kost-validation" aria-label="SIP-Validation">
   <details #panel [open]="expanded()" (toggle)="expanded.set(panel.open)">
-    <summary><img src="/package-turbo/shield-check.svg" width="16" height="16" alt=""><strong>SIP-Validation</strong><span class="kost-status" role="status" [class.running]="active(viewingRun() || selected()?.latest)" [class.invalid]="(viewingRun() || selected()?.latest)?.result==='invalid'" [class.failed]="(viewingRun() || selected()?.latest)?.result==='error'">{{inventory() ? status(viewingRun() || selected()?.latest) : 'Loading'}}</span><span class="scope">{{selected()?.label}}</span>@if(report()?.validator_error){<span class="engine-error">Validator error present</span>}@if(viewingRun()){<span class="scope">Historical run</span>}<span class="scope">Advisory</span></summary>
+    <summary><img src="/package-turbo/shield-check.svg" width="16" height="16" alt=""><strong>SIP-Validation</strong><span class="kost-status" role="status" [class.running]="active(viewingRun() || selected()?.latest)" [class.invalid]="(viewingRun() || selected()?.latest)?.result==='invalid'" [class.failed]="(viewingRun() || selected()?.latest)?.result==='error'">{{inventory() ? status(viewingRun() || selected()?.latest) : 'Loading'}}</span><span class="scope">{{targetLabel(selected())}}</span>@if(report()?.validator_error){<span class="engine-error">Validator error present</span>}@if(viewingRun()){<span class="scope">Historical run</span>}<span class="scope">Advisory</span></summary>
     @if(inventory();as doc){
       <div class="kost-toolbar">
-        <label>Validated artifact<select [value]="chosen()" (change)="choose($any($event.target).value)" [disabled]="working()">@for(target of doc.targets;track target.target_id){<option [value]="target.target_id">{{target.label}}</option>}</select></label>
+        <label>Validated artifact<select [ngModel]="chosen()" (ngModelChange)="choose($event)" [disabled]="working()">@for(target of doc.targets;track target.target_id){<option [value]="target.target_id">{{targetLabel(target)}}</option>}</select></label>
         @if(canRun()){<button type="button" (click)="run()" [disabled]="!doc.enabled || working() || active(selected()?.latest) || !selected()"><img src="/package-turbo/scan-search.svg" width="16" height="16" alt="">{{working() ? 'Queueing' : selected()?.latest ? 'Re-run SIP validation' : 'Run SIP validation'}}</button>}
         <button type="button" class="icon-button" (click)="refresh()" aria-label="Refresh SIP Validator status" title="Refresh SIP Validator status"><img src="/package-turbo/scan-search.svg" width="16" height="16" alt=""></button>
       </div>
       @if(!doc.enabled){<p class="notice">SIP Validator service is not configured.</p>}
       @if(selected();as target){
-        <p class="digest">{{target.label}} SHA-256: {{target.input_sha256}}</p>
+        @if(selectedSnapshot();as snapshot){<p class="selected-snapshot"><strong>{{targetLabel(target)}}</strong> · {{snapshot.created | date:'medium'}}<br>{{snapshot.reason}}</p>}
+        <p class="digest">{{targetLabel(target)}} SHA-256: {{target.input_sha256}}</p>
         @if(target.latest;as run){
           <div class="run-facts"><span>{{status(run)}}</span><span>Requested {{run.created*1000 | date:'medium'}}</span>@if(run.finished){<span>Result {{run.finished*1000 | date:'medium'}}</span>}</div>
           @if(run.message){<p>{{run.message}}</p>}
