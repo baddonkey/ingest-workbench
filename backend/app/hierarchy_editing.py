@@ -14,19 +14,20 @@ def ident(element, identities=None):
     return key('logical', fields.identity_path(element,identities=identities))
 
 
-def groups(root, identities=None):
-    """Only complete, identified same-kind groups under a logical object qualify."""
+def groups(root, identities=None, *, activity_assignment=True):
+    """Only complete same-kind groups with native or retained identities qualify."""
     result = []
     for parent in root.iter():
         if not isinstance(parent.tag, str) or parent.tag not in {fields.A+k for k in CHILD_KINDS|{'ordnungssystem'}}:
             continue
         for kind in sorted(CHILD_KINDS):
             children = parent.findall(fields.A+kind)
-            if not 2 <= len(children) <= MAX_SIBLINGS or kind not in ('vorgang','aktivitaet') and not all(c.get('id') for c in children):
+            if not 2 <= len(children) <= MAX_SIBLINGS or (kind not in ('vorgang','aktivitaet') and not all(c.get('id') for c in children)):
                 continue
             result.append({'parent_id': ident(parent,identities), 'child_kind': kind,
                            'children': [{'id':ident(c,identities), 'source_id':c.get('id'),
-                                         'title':fields.object_title(c)} for c in children]})
+                                         'title':(c.findtext(fields.A+'titel') or c.get('id')
+                                                  or fields.object_title(c,activity_assignment=activity_assignment))} for c in children]})
     return result
 
 
@@ -72,5 +73,10 @@ def verify(before, after, record, info, schemas, sip, identities=None):
         raise PackageError('Unknown retained hierarchy operation contract')
     root = xml(before)
     actual = apply(root, info, change,identities)
+    if record.get('version')==10 and change['child_kind']=='aktivitaet' and actual!=change:
+        # Early v10 journals used a generic activity title. Only the exact previous projection qualifies.
+        original_group=next(g for g in groups(xml(before),identities,activity_assignment=False)
+                            if g['parent_id']==change['parent_id'] and g['child_kind']==change['child_kind'])
+        actual['objects']=original_group['children']
     if actual != change or fields.validate(root, schemas, sip) != after:
         raise PackageError('Retained hierarchy operation changed unapproved structure or metadata')

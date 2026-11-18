@@ -205,7 +205,7 @@ def preparation_command(ident:str,sip_id:str,data:MetadataOperation,u:Principal=
 
 @app.post('/api/transfers/{ident}/sips/{sip_id}/preparation/edit-preview')
 def edit_preview(ident:str,sip_id:str,data:MetadataOperation,u:Principal=Depends(require('archive-operator'))):
-    from .working_metadata import baseline,sip_for,apply_edits
+    from .working_metadata import baseline,sip_for,history,apply_edits
     from . import editor_fields as fields
     from .packages import xml,sha
     from .json_codec import canonical
@@ -217,7 +217,7 @@ def edit_preview(ident:str,sip_id:str,data:MetadataOperation,u:Principal=Depends
     if body['revision']!=data.revision or sip['sha256']!=data.source_sha256 or state['head']!=data.base_operation_id:
         raise Conflict('Working version changed; reload before previewing edits')
     root=xml(metadata);info=fields.schema(service.schemas,sip)
-    changes=apply_edits(root,info,request['edits'])
+    changes=apply_edits(root,info,request['edits'],fields.current_identities(history(body,sip_id)))
     updated=fields.validate(root,service.schemas,sip)
     return JSONResponse({'edits':changes,'metadata_sha256':sha(updated)},headers={'Cache-Control':'no-store'})
 
@@ -234,19 +234,21 @@ def import_preview(ident:str,sip_id:str,data:MetadataOperation,u:Principal=Depen
     _,metadata,state=baseline(service,body,sip)
     if body['revision']!=data.revision or sip['sha256']!=data.source_sha256 or state['head']!=data.base_operation_id:
         raise Conflict('Working version changed; reload before previewing imports')
-    changes,updated=apply_import(xml(metadata),fields.schema(service.schemas,sip),history(body,sip_id),
-        request,state['head'],metadata,service.schemas,sip)
+    records=history(body,sip_id)
+    changes,updated=apply_import(xml(metadata),fields.schema(service.schemas,sip),records,
+        request,state['head'],metadata,service.schemas,sip,fields.current_identities(records))
     return JSONResponse({'edits':changes['metadata_import']['edits'],'metadata_sha256':sha(updated)},headers={'Cache-Control':'no-store'})
 
 @app.get('/api/transfers/{ident}/sips/{sip_id}/preparation/import-template/{format}')
 def import_template(ident:str,sip_id:str,format:Literal['csv','xlsx','xml','json'],object_id:str|None=None,u:Principal=Depends(require('archive-reader'))):
-    from .working_metadata import baseline,sip_for
+    from .working_metadata import baseline,sip_for,history
     from . import editor_fields as fields, metadata_imports
     from .packages import xml
     from .package_handler import attachment_headers
     body=service.get(ident,u.tenant);sip=sip_for(body,sip_id)
     _,metadata,_=baseline(service,body,sip)
-    nodes,_=fields.catalog(xml(metadata),fields.schema(service.schemas,sip))
+    nodes,_=fields.catalog(xml(metadata),fields.schema(service.schemas,sip),
+        identities=fields.current_identities(history(body,sip_id)))
     if object_id is not None:
         if format=='xml':raise PackageError('XML templates require the complete metadata document')
         nodes=[node for node in nodes if node['id']==object_id]
@@ -281,7 +283,7 @@ def content_edit_preview(ident:str,sip_id:str,data:MetadataOperation,u:Principal
 
 @app.post('/api/transfers/{ident}/sips/{sip_id}/preparation/creation-preview')
 def creation_preview(ident:str,sip_id:str,data:MetadataOperation,u:Principal=Depends(require('archive-operator'))):
-    from .working_metadata import baseline,sip_for
+    from .working_metadata import baseline,sip_for,history
     from . import hierarchy_creation as creation, editor_fields as fields
     from .packages import xml
     from .json_codec import canonical
@@ -292,7 +294,7 @@ def creation_preview(ident:str,sip_id:str,data:MetadataOperation,u:Principal=Dep
     if body['revision']!=data.revision or sip['sha256']!=data.source_sha256 or state['head']!=data.base_operation_id:
         raise Conflict('Working version changed; reload before previewing creation')
     root=xml(metadata);info=fields.schema(service.schemas,sip)
-    result=creation.apply(root,info,data.model_dump())
+    result=creation.apply(root,info,data.model_dump(),fields.current_identities(history(body,sip_id)))
     fields.validate(root,service.schemas,sip)
     return JSONResponse(result,headers={'Cache-Control':'no-store'})
 

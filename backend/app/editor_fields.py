@@ -40,9 +40,9 @@ def identity_path(element, version=2, identities=None):
 
 
 def identity_bindings(root, identities=None):
+    tags={A+kind for kind in OBJECTS}
     return {element:identity_path(element,identities=identities) for element in root.iter()
-            if isinstance(element.tag,str) and element.tag in {A+kind for kind in OBJECTS}
-            and not element.get('id')}
+            if element.tag in tags and not element.get('id')}
 
 
 def validate_identities(root, identities):
@@ -81,15 +81,11 @@ def current_identities(records):
     return versions[records[-1]['id']][1] if records else {}
 
 
-def identity_document(records):
-    return ({'version':1,'head':records[-1]['id'],'current':current_identities(records)}
-            if any(r.get('version')==10 for r in records) else None)
-
-
-def object_title(element):
+def object_title(element, *, activity_assignment=True):
     kind=ET.QName(element).localname
     return (element.findtext(A+'titel') or element.findtext(A+'name')
             or element.findtext(A+'aktenbildnerName') or element.findtext(A+'ablieferndeStelle')
+            or (element.findtext(A+'vorschreibung') if kind=='aktivitaet' and activity_assignment else '')
             or ((element.text or '').strip() if kind in ('vorgang','aktivitaet') else '')
             or element.get('id') or label(kind))
 

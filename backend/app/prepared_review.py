@@ -171,9 +171,11 @@ def note_views(service, body, selected):
             records=working_metadata.history(body,selection['sip_id'])
             position=next(i for i,r in enumerate(records) if r['id']==frozen['operation_id'])
             sip=working_metadata.sip_for(body,selection['sip_id'])
-            nodes,_=editor_fields.catalog(xml(service.blob(frozen['metadata_sha256'])),editor_fields.schema(service.schemas,sip))
+            records=records[:position+1]
+            nodes,_=editor_fields.catalog(xml(service.blob(frozen['metadata_sha256'])),editor_fields.schema(service.schemas,sip),
+                                          identities=editor_fields.current_identities(records))
             titles={n['id']:n['title'] for n in nodes}
-            rows=[{**note,'object_title':titles[note['node_id']]} for note in preparation_notes.state(records[:position+1])]
+            rows=[{**note,'object_title':titles[note['node_id']]} for note in preparation_notes.state(records)]
         result.append({**selection,'notes':rows})
     return result
 

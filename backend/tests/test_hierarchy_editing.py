@@ -1,10 +1,11 @@
 """Identity-safe sibling order, exact replay, retained evidence and candidate flow."""
+import base64
 import copy
 import json
 import uuid
 from fastapi.testclient import TestClient
 from app import main, hierarchy_editing as hierarchy, editor_fields as fields, working_metadata as working
-from app import prepared_inputs
+from app import prepared_inputs, prepared_review
 from app.auth import Principal, principal
 from app.packages import PackageError, xml, sha, members, inspect
 from app.recovery import backup, restore
@@ -25,6 +26,80 @@ class HierarchyFixture(NotesFixture):
 
 
 class HierarchyTests(HierarchyFixture):
+    def test_activity_identity_survives_reorder_edit_preview_import_and_frozen_notes(self):
+        case=next(c for c in json.loads((ROOT/'fixtures/corpus.json').read_bytes())['cases'] if '1.1G' in c['file'])
+        self.transfer,self.sip,_=self.create(case)
+        prior=main.service;main.service=self.service
+        self.addCleanup(setattr,main,'service',prior)
+        self.addCleanup(main.app.dependency_overrides.clear)
+        main.app.dependency_overrides[principal]=lambda:Principal('editor','archive-a',frozenset({'archive-reader','archive-operator'}),'archive-workbench')
+        client=TestClient(main.app)
+        base=f"/api/transfers/{self.transfer['id']}/sips/{self.sip['id']}/preparation"
+        def request(kind,**extra):
+            doc=self.document()
+            return dict(request_id=str(uuid.uuid4()),revision=doc['revision'],source_sha256=self.sip['sha256'],
+                        base_operation_id=doc['state']['head'],reason='Review activity identity',kind=kind,**extra)
+        def post(path,body):
+            result=client.post(base+'/'+path,json=body)
+            self.assertEqual(result.status_code,200,result.text)
+            return result.json()
+        def group():
+            return next(g for g in self.document()['reorder_groups'] if g['child_kind']=='aktivitaet')
+        def node(ident):
+            return next(n for n in self.document()['nodes'] if n['id']==ident)
+
+        before=group();first,second=before['children'][:2];selected=first['id']
+        self.assertNotEqual(first['title'],second['title'])
+        original=node(selected)
+        note=self.operation('note-add',node_id=selected,note_text='The note follows this activity',note_purpose='internal')['operation']
+        reordered=self.reorder(before)['operation']
+        self.assertEqual(reordered['version'],10)
+        old_xml,new_xml=(self.service.blob(reordered[k]) for k in ('before_metadata_sha256','after_metadata_sha256'))
+        info=fields.schema(self.service.schemas,self.sip)
+        early=copy.deepcopy(reordered)
+        early['changes']['objects']=next(g['children'] for g in hierarchy.groups(xml(old_xml),activity_assignment=False)
+                                         if g['parent_id']==before['parent_id'] and g['child_kind']=='aktivitaet')
+        hierarchy.verify(old_xml,new_xml,early,info,self.service.schemas,self.sip)
+        forged=copy.deepcopy(reordered)
+        forged['changes']['identities']['after']=forged['changes']['identities']['before']
+        with self.assertRaises(PackageError):
+            hierarchy.verify(old_xml,new_xml,forged,info,self.service.schemas,self.sip)
+        self.assertEqual(group()['children'][-1],first)
+        self.assertEqual(node(selected),original)
+        self.assertEqual(self.document()['notes'][0]['node_id'],selected)
+        self.operation('undo');self.assertEqual(group(),before)
+        self.operation('redo');self.assertEqual(group()['children'][-1],first)
+
+        template=client.get(base+'/import-template/json',params={'object_id':selected})
+        self.assertEqual(template.status_code,200,template.text)
+        rows=template.json()
+        assignment=next(row for row in rows if row['field']=='vorschreibung')
+        self.assertEqual(assignment['value'],first['title'])
+        field=next(f for f in original['fields'] if f['tag']=='vorschreibung')
+        values=copy.deepcopy(field['values']);values[0]['text']='Reviewed assignment'
+        edit=request('edit-batch',edits=[dict(node_id=selected,field_id=field['id'],before=field['values'],values=values)])
+        preview=post('edit-preview',edit)
+        applied=post('commands',edit)['operation']
+        self.assertEqual(preview['metadata_sha256'],applied['after_metadata_sha256'])
+        self.assertEqual(node(selected)['title'],'Reviewed assignment')
+        self.assertEqual(node(second['id'])['title'],second['title'])
+
+        raw=json.dumps([{'object_id':selected,'field':'vorschreibung','value':'Imported assignment'}]).encode()
+        retained=post('commands',request('import-record',import_source={
+            'filename':'activity.json','format':'json','data_base64':base64.b64encode(raw).decode()}))['operation']
+        row=retained['changes']['metadata_import_proposal']['rows'][0]
+        review=request('import-apply',import_id=retained['id'],import_decisions=[
+            dict(row_id=row['id'],action='apply',node_id=selected,field='vorschreibung',reason='')])
+        preview=post('import-preview',review)
+        self.assertEqual(preview['metadata_sha256'],post('commands',review)['operation']['after_metadata_sha256'])
+        frozen=self.freeze()['prepared_input']
+        self.operation('restore',target_id=note['id'])
+        self.assertEqual(group(),before)
+        notes=prepared_review.note_views(self.service,self.current(),[{'sip_id':self.sip['id'],'prepared_id':frozen['id']}])[0]['notes']
+        self.assertEqual([(n['node_id'],n['object_title']) for n in notes],[(selected,'Imported assignment')])
+        self.assertEqual(node(selected)['title'],first['title'])
+        working.validate_retained(self.current(),self.service.blob,self.service.schemas)
+
     def test_all_eight_inputs_preserve_identities_inventory_note_links_and_versioned_freeze(self):
         for case in json.loads((ROOT/'fixtures/corpus.json').read_bytes())['cases']:
             with self.subTest(case=case['file']):

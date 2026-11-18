@@ -341,7 +341,9 @@ same operation. None of these preparation decisions is archival acceptance.
   creation**, inspect the proposal, then **Create objects**. Available object
   types depend on the selected parent and profile.
 - Where offered, use an object's context menu to preview a sibling reorder and apply it with a
-  reason. Not all moves, deletions, payload edits or SIP creation are implemented.
+  reason. Process and activity notes follow their objects when siblings are reordered,
+  even where the SIP schema does not define an XML ID. Cross-parent moves are not
+  part of this action.
 - Select an object and use **New note** or **Notes** to record object-linked
   preparation context. Notes can be internal or marked as a description
   candidate; they are not published automatically.

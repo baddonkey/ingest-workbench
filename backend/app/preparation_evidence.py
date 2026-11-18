@@ -148,6 +148,16 @@ def verify(data, records, sip, schemas=None):
     expected_contents.update({sip['sha256']:payload.get('original.zip')})
     expected_contents.update({record[key]:payload.get('versions/'+record[key]+'.xml')
                              for record in records for key in ('before_metadata_sha256','after_metadata_sha256')})
+    if schemas is not None and any(r.get('version')==10 for r in records):
+        from . import editor_fields as fields, hierarchy_editing as hierarchy
+        identities=fields.identity_snapshots(records)
+        info=fields.schema(schemas,sip)
+        for record in records:
+            if record.get('version')==10:
+                before,after=(expected_contents[record[k]] for k in ('before_metadata_sha256','after_metadata_sha256'))
+                if before is None or after is None:
+                    raise PackageError('Missing editor identity XML snapshot')
+                hierarchy.verify(before,after,record,info,schemas,sip,identities[record['id']][0])
     if schemas is not None and content_archives:
         versions=content_editing.snapshots(records,sip['sha256'])
         for record in records:
