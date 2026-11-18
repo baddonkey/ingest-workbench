@@ -11,10 +11,9 @@ controls also offer German, French and Italian.
 > archival acceptance are different decisions. Building a candidate does not
 > deposit it in a repository or accept it in a descriptive system.
 
-The [specification](specification.md) defines the product contract and local
-operations. The [gap list](gap-list.md) describes incomplete and unqualified
-features. Screenshots in this guide show an isolated demonstration transfer
-using a KOST reference SIP; names, counts and dates will differ in your work.
+The [specification](specification.md) defines the product contract, local
+operations and current limitations. Screenshots show demonstration transfers
+using sample SIPs; names, counts and dates will differ in your work.
 
 ## Contents
 
@@ -90,16 +89,19 @@ The **Classification scheme** form shows **Name**, **Generation**, **Period of
 use**, **Shared use** and **Remarks**, in that order. Other available fields
 remain under **Secondary fields**.
 
+If an optional group such as **Creation date range** is empty, choose **Add value**
+to reveal its fields. Use the main toolbar's **Save** to persist the change.
+
 Under **Secondary fields**, **Additional metadata** shows a read-only summary
 with an **Edit additional metadata...** button. The dialog edits characteristic
-names and values; add or remove rows as needed. **Cancel** (or Escape) leaves
+names and values; add or remove rows, or use **Move up** and **Move down**
+to change their order. **Cancel** (or Escape) leaves
 the current proposal unchanged. The dialog's **Save** updates the pending
 proposal; use **Save** in the main toolbar and provide an editing reason to
-persist it. Each compact row contains a name, value and remove button; the
-full-width **+ Characteristic** button adds another row.
+persist it. The full-width **+ Characteristic** button adds another row.
 Removing every row removes the optional additional-metadata container.
 
-![Additional metadata dialog with characteristic names, values, add/remove controls and pending-proposal actions](images/additional-metadata.png)
+![Additional metadata dialog with characteristic names, values, and controls to add, move, or remove rows](images/additional-metadata.png)
 
 The **File** form shows **Name** and **ID** first. Expand **Secondary fields**
 for **Properties**, **Original name**, **Checksum algorithm** and **Checksum**,
@@ -379,8 +381,16 @@ Sampling and sample-review notes support preparation. They do not replace full
 validation, an independent review of the selected frozen input, candidate
 authorization or external archival acceptance.
 
-See the [gap list](gap-list.md#package-preparation) before relying on a
-capability that is disabled or not present.
+![Edit history showing a sibling move from position 1 to 3, its undo and redo, and a separate note event](images/sibling-reorder-history.png)
+
+To see the exact sequence, click a reorder, undo or redo event in **Edit
+history** and expand **Order details**. The numbered **Before** and **After**
+lists describe that event, not the current navigator order.
+
+![An undo event with Order details expanded to show both numbered sibling sequences](images/sibling-reorder-details.png)
+
+See the [package preparation contract](specification.md#package-preparation-contract)
+for current limits.
 
 ## Inspect validation results
 
@@ -507,6 +517,16 @@ The transfer's **Evidence** tab displays the persisted event chain. Expand
 **Event details & fixity** for details and the event hash. Packager **Edit
 history**, frozen-version evidence and review evidence provide additional
 version-specific downloads.
+
+To find a reorder in a frozen version's **Download METS/PREMIS evidence** ZIP:
+
+1. Read `freeze.json` to find the working operation ID bound to the snapshot.
+2. Open `preparation.zip` inside the download, then open its
+   `metadata/premis.xml`. Search for the operation ID or `structure-reorder`.
+   The event detail contains the full `before_order` and `after_order` arrays
+   of stable object IDs. For a more readable view, open the inner `history.json`.
+3. Use the outer `metadata/premis.xml` for the freeze event itself. It does not
+   repeat the inner edit history.
 
 In **AIP profile**, record archive identity, designated community and
 knowledge base; preserve supporting documentation and import structured

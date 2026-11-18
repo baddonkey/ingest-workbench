@@ -1,12 +1,12 @@
 # Ingest Workbench Specification
 
-Status: consolidated source of truth, 14 November 2026. This describes the agreed product contract, current implementation boundaries, and local operating conventions. Open work is tracked only in [gap-list.md](gap-list.md). Historical increment narratives and repeated status summaries have been retired.
+This specification defines the agreed product contract and local operating conventions. Implementation and qualification limits are documented inline next to the relevant requirements. 🔴 **Not implemented** marks a missing capability or the missing part of an existing requirement. 🔴 **Not qualified** marks a limit of verification or approval, not necessarily missing code.
 
 ## Purpose and boundary
 
 Ingest Workbench is a Python/FastAPI and Angular reference application for receiving **m SIPs and arranging them into n AIP candidates**. It supports eCH-0160 1.0, 1.1, 1.2.0, and 1.3.0, Keycloak OIDC, METS/PREMIS evidence, SQLite by default and optional PostgreSQL.
 
-This is not a certified preservation system. Receipt validation, preparation review, candidate readiness, institutional approval and archival acceptance are distinct states. Creating a candidate does not imply archival acceptance. Finalization remains disabled.
+This is not a certified preservation system. Receipt validation, preparation review, candidate readiness, institutional approval and archival acceptance are distinct states. Creating a candidate does not imply archival acceptance. 🔴 **Not implemented:** production archival finalization remains disabled.
 
 ## Repository layout
 
@@ -22,7 +22,7 @@ This is not a certified preservation system. Receipt validation, preparation rev
 | `schemas/preservation/` | METS, PREMIS and supporting XML schemas |
 | `profiles/` | Workbench AIP application-profile JSON contracts, not eCH schemas |
 | `references/provenance.json` | Consolidated source URLs, licenses, and source/import SHA-256 records |
-| `docs/` | This specification, the gap list, and retained license texts |
+| `docs/` | This specification, the user manual, and retained license texts |
 | `var/local-evidence/` | Ignored workstation execution reports and generated evidence; never a source of truth |
 
 The eCH-0160 schemas are intentionally separate from METS/PREMIS schemas. The source ZIPs and extracted XSDs are both retained: the ZIP pins the retrieved source; the extracted files are what the application validates against. `scripts/install_schemas.py` verifies source archive hashes from `references/provenance.json` before extraction. `fixtures/` is for sample SIP data, not schema distributions.
@@ -38,7 +38,7 @@ The eCH-0160 schemas are intentionally separate from METS/PREMIS schemas. The so
 
 The declared profile and `schemaVersion` must agree. Never silently upgrade a submission to a newer schema. Mixed-profile transfers are allowed; each SIP retains its own profile, source bytes, validation and evidence. ZIP/XML parsing is bounded, rejects unsafe paths, collisions, links and encrypted entries, disables XML entities/network access, and uses pinned local schemas.
 
-Mapping supports 1:1, 1:n, m:1 and m:n. The current smallest selectable unit is a top-level dossier; descendants, payload references and ordering stay together. Every accepted unit is assigned exactly once. Shared files or relationships crossing target boundaries and unsupported layouts are rejected; exclusions and finer-grained splitting require explicit policy before implementation. Source identifiers are qualified by SIP identity. Identical bytes do not merge archival identities.
+Mapping supports 1:1, 1:n, m:1 and m:n. The current smallest selectable unit is a top-level dossier; descendants, payload references and ordering stay together. Every accepted unit is assigned exactly once. Shared files or relationships crossing target boundaries and unsupported layouts are rejected. 🔴 **Not implemented:** exclusions and finer-grained splitting require explicit policy first. Source identifiers are qualified by SIP identity. Identical bytes do not merge archival identities.
 
 ## Lifecycle and gates
 
@@ -73,29 +73,37 @@ Receipt findings, specialist format validation, preservation readiness, reviewer
 
 Navigator behavior is based on the pinned Package Turbo source, not its screenshots: `web/src/app/app.ts` (`classificationRows`, `dossierRows`, `fileRows`, recursive `tree`) and `ph_web/app.py` (`list_children`, including referenced inventory files). The preparation workspace exposes explicit `navigation` rows over canonical metadata objects. Classification contains the complete classification/record hierarchy down to referenced files; Dossiers starts at top-level dossiers and includes nested dossiers, maps, processes, activities, documents and referenced files. Package Content contains the package root and full folder/file hierarchy. Shared files may appear beneath multiple logical owners, with separate stable navigation keys but a single editable metadata object. Repeated references within one owner are deduplicated. Expansion and indentation follow navigation parents rather than XML-kind filters. Selecting a referenced file does not switch the navigator away from Dossiers; search preserves matching objects' ancestor rows. SIP bytes, metadata identities and retained edit evidence are unchanged by these read-only navigation projections.
 
-The embedded Package Turbo-inspired workspace is part of the existing transfer lifecycle. It must use existing archive identity, tenant permissions, persistence and evidence; it must not become a separate application, login, package database or ingest workflow. The following capabilities are the agreed target; implementation status is in the gap list.
+The embedded Package Turbo-inspired workspace is part of the existing transfer lifecycle. It must use existing archive identity, tenant permissions, persistence and evidence; it must not become a separate application, login, package database or ingest workflow. The table keeps the agreed requirements and marks incomplete parts in place.
 
 | ID | Required behavior |
 |---|---|
-| PH-01 | Profile-driven metadata editing for all applicable submission, provenance, structure, activity and object fields; preserve unknown source metadata and original language. Support typed, optional, repeated and ordered fields. |
-| PH-02 | Create, move, reorder and remove applicable hierarchy objects without changing unrelated identities; validate references and arrangement boundaries. |
-| PH-03 | Upload, download, rename, move, replace and remove files/folders; update inventory, fixity and references atomically while retaining original/replaced/removed bytes. |
-| PH-04 | Create GEVER and FILES eCH SIPs under the four trusted profiles, then use the same validation/review flow as imported inputs. No implicit version upgrade. |
+| PH-01 | Profile-driven metadata editing for all applicable submission, provenance, structure, activity and object fields; preserve unknown source metadata and original language. Support typed, optional, repeated and ordered fields. The editor can add absent optional groups such as **Creation date range** and reorder entries in **Additional metadata** and **File properties**. Save and reload were verified for these workflows; representative eCH 1.1 process and activity edits preserved unrelated XML and the original SIP. 🔴 **Not qualified:** complete field coverage across profiles. |
+| PH-02 | Create, move, reorder and remove applicable hierarchy objects without changing unrelated identities; validate references and arrangement boundaries. Sibling reordering and supported native-ID object creation are available. 🔴 **Not implemented:** process/activity creation, cross-parent moves and branch removal. |
+| PH-03 | Upload, download, rename, move, replace and remove files/folders; update inventory, fixity and references atomically while retaining original/replaced/removed bytes. Individual payload-file rename and replacement are available. 🔴 **Not implemented:** file/folder upload into a working SIP, moves and removal, and folder rename. Branch removal must keep shared files and historical bytes. |
+| PH-04 | Create GEVER and FILES eCH SIPs under the four trusted profiles, then use the same validation/review flow as imported inputs. No implicit version upgrade. 🔴 **Not implemented:** creation of complete SIPs. |
 | PH-05 | Persistent actor/time/reason history with before/after state, compare, restore, undo and redo. Compensating actions remain in history; do not erase prior events. |
-| PH-06 | Validate exact working/frozen bytes with trusted schema and receipt checks; provide findings that navigate to affected objects. External format validation remains separate until qualified. |
+| PH-06 | Validate exact working/frozen bytes with trusted schema and receipt checks; provide findings that navigate to affected objects. SIP-Validation reports are available for received and frozen artifacts. 🔴 **Not qualified:** external format validation remains advisory. |
 | PH-07 | Object-linked notes with history and explicit internal-versus-description-candidate purpose; never publish notes implicitly. |
 | PH-08 | Advanced metadata/type/date/name/finding search that opens the matching object and identifies whether it searches current or historical versions. |
 | PH-09 | Reproducible criteria-based or random sampling bound to the exact population/version, parameters, selections and review evidence. |
-| PH-10 | Bulk operations preview every affected object, validate the proposal and retain per-object attributable effects under a shared operation/reason. |
-| PH-11 | Permit safe preparation/repair of incomplete or invalid SIPs while preserving exact originals; block progression until required checks pass. |
+| PH-10 | Bulk operations preview every affected object, validate the proposal and retain per-object attributable effects under a shared operation/reason. Reviewed scalar metadata edits are available. 🔴 **Not implemented:** bulk hierarchy and payload operations. |
+| PH-11 | Permit safe preparation/repair of incomplete or invalid SIPs while preserving exact originals; block progression until required checks pass. 🔴 **Not implemented:** guided repair of invalid or incomplete SIPs. |
 | PH-12 | Freeze exact versions for review; bind validation, m:n plan, independent review and candidate generation to those versions. Later edits require successor review. |
 | PH-13 | Export version-specific eCH SIP and preservation evidence linked by digest, including METS/PREMIS and authorized preparation history. |
 | PH-14 | Provide version-bound counts, sizes, format assessments, completeness, broken-reference and validation statistics with object drill-down. |
 | PH-15 | Safe, version-bound previews for supported text, image, PDF and audiovisual formats; generated derivatives never replace originals. |
-| PH-16 | Import external metadata as a retained proposal; compare, resolve identity/reference conflicts and apply only reviewed changes. |
+| PH-16 | Import external metadata as a retained proposal; compare, resolve identity/reference conflicts and apply only reviewed changes. Reviewed scalar import is available. 🔴 **Not implemented:** structured/repeated field imports and applying reference changes through import. |
 | PH-17 | Save all pending metadata-field proposals across a SIP atomically under one operation/reason, revision and undo step, retaining per-field identities and before/after evidence. Persist each applied operation, support named checkpoints, show pending/in-flight/retained state, deduplicate exact retries and reject stale concurrent writes. |
-| PH-18 | Complete German, French, Italian and English UI labels, help, findings, history and actions; preserve producer-supplied values unchanged. |
-| PH-19 | Preserve reviewed Package Turbo SVG assets/action mappings and notices; provide accessible localized labels. |
+| PH-18 | Complete German, French, Italian and English UI labels, help, findings, history and actions; preserve producer-supplied values unchanged. 🔴 **Not qualified:** full four-language coverage. |
+| PH-19 | Preserve reviewed Package Turbo SVG assets/action mappings and notices; provide accessible localized labels. 🔴 **Not qualified:** full action/icon and accessibility parity. |
+
+Sibling reordering saves on drop in the navigator, or through **Move up** and
+**Move down**. No separate note or reason prompt is required; the operation
+retains actor/time and system-supplied context. Edit history summarizes position
+changes, with complete sequences under **Order details**. The audit record and
+PREMIS keep exact before/after ID sequences. For affected objects without native
+XML IDs, operation contract 10 retains an editor identity mapping without adding
+IDs to the submitted schema.
 
 Local dossier sampling uses `sha256-ranked-v1`: filter applied dossier names and
 references case-insensitively, rank by SHA-256 of UTF-8 `seed + NUL + node_id`
@@ -230,7 +238,7 @@ Two versioned candidate contracts are retained under `profiles/ch-aip/`:
 - Profile 3.0.0 is the current preparation-only source candidate contract.
 - Profile 4.0.0 is the current preparation-only selected-input candidate contract.
 
-Candidates retain stable logical identity, immutable numbered versions, predecessor digest, source-qualified hierarchy, selected payload, manifests, METS/PREMIS, workflow evidence and explicit preservation context. The database-free verifier checks ZIP safety, fixity, profile schemas, XML, graph closure, lineage and review bindings. Prepared-input profiles embed a shared preparation dossier in each target and are not redacted distribution packages. Structural validity, preservation readiness, institutional approval and archival acceptance are separate. The shipped institutional policy remains unapproved.
+Candidates retain stable logical identity, immutable numbered versions, predecessor digest, source-qualified hierarchy, selected payload, manifests, METS/PREMIS, workflow evidence and explicit preservation context. The database-free verifier checks ZIP safety, fixity, profile schemas, XML, graph closure, lineage and review bindings. Prepared-input profiles embed a shared preparation dossier in each target and are not redacted distribution packages. Structural validity, preservation readiness, institutional approval and archival acceptance are separate. 🔴 **Not qualified:** the shipped institutional policy remains unapproved.
 
 Candidate profiles 1.0.0 and 2.0.0 and recovery snapshots in the previous format are no longer supported. Recovery refuses retained records from the retired integrations rather than silently omitting them. Existing databases, blobs and former simulator volumes are not deleted.
 
@@ -238,11 +246,11 @@ Candidate profiles 1.0.0 and 2.0.0 and recovery snapshots in the previous format
 
 Angular is a public Keycloak client using Authorization Code + PKCE S256; tokens remain in adapter memory. The API validates JWT signature, issuer, audience, expiry, token type and allowed client. Authorization uses verified subject, archive scope, roles and object/tenant checks; never trust browser-supplied actor or tenant headers. Two-person review is enforced server-side.
 
-Treat uploads as hostile. Keep ZIP limits, XML entity/network protections, schema pinning and strict boundary validation. Production still requires parser isolation, malware quarantine, quotas/resumable upload, restricted egress, TLS, managed secrets, production Keycloak/MFA, least privilege, operational logs/metrics and independent audit controls.
+Treat uploads as hostile. Keep ZIP limits, XML entity/network protections, schema pinning and strict boundary validation. 🔴 **Not implemented by the local reference stack:** parser isolation, malware quarantine, quotas and resumable uploads. 🔴 **Not qualified:** production egress restrictions, TLS, secrets, Keycloak/MFA, least privilege, monitoring and independent audit controls.
 
 SQLite and PostgreSQL are separate supported local persistence paths. PostgreSQL uses explicit Alembic migrations; startup must not create/upgrade its schema or silently fall back to SQLite.
 
-Application snapshot/restore requires stopped workers, explicit quiescence, a new destination and separately retained manifest digest. Workflow records and blobs must be restored consistently. Identity, secrets, infrastructure HA and disaster recovery are separate. Restore expires old capabilities and never sends external writes.
+Application snapshot/restore requires stopped workers, explicit quiescence, a new destination and separately retained manifest digest. Workflow records and blobs must be restored consistently. 🔴 **Not covered by application snapshot/restore:** identity, secrets, infrastructure HA and disaster recovery. Restore expires old capabilities and never sends external writes.
 
 ## External systems
 

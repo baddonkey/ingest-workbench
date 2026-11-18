@@ -59,6 +59,11 @@ test('drag sibling rows to save order directly while preserving notes and histor
     await expect(event.locator('.history-order-summary')).toContainText(first.title+' moved from position '+from+' to '+to);
     await expect(event.locator('.history-old-value, .history-new-value')).toHaveCount(0);
   }
+  const captureDocs=process.env['ARCHIVE_UPDATE_DOCS']==='true';
+  if(captureDocs){
+    await page.setViewportSize({width:2100,height:1400});
+    await editor.locator('.history-table-scroll').screenshot({path:resolve('..','docs','images','sibling-reorder-history.png')});
+  }
   await history.filter({has:page.getByRole('button',{name:'Undo',exact:true})}).getByRole('button').click();
   const historyDialog=editor.getByRole('dialog',{name:'History event',exact:true});
   const orderDetails=historyDialog.locator('.history-order-details');
@@ -66,6 +71,7 @@ test('drag sibling rows to save order directly while preserving notes and histor
   await orderDetails.getByText('Order details',{exact:true}).click();
   await expect(orderDetails.locator('ol').first().locator('li')).toHaveText(headings(expected));
   await expect(orderDetails.locator('ol').last().locator('li')).toHaveText(headings(group.children));
+  if(captureDocs)await historyDialog.screenshot({path:resolve('..','docs','images','sibling-reorder-details.png')});
   await page.keyboard.press('Escape');
   const noteRow=editor.locator('.metadata-operation').filter({hasText:'Note added'});await expect(noteRow.locator('.history-old-value')).toHaveText('Not present');await expect(noteRow.locator('.history-new-value')).toContainText('This note must stay linked to this dossier.');
   await editor.locator('.metadata-operation').last().getByRole('button').click();await editor.getByRole('dialog',{name:'History event',exact:true}).getByRole('button',{name:'Compare with working version',exact:true}).click();await expect(editor.locator('.version-comparison')).toContainText('Object order');

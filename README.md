@@ -15,7 +15,7 @@ The project is available under the [MIT License](LICENSE), which permits commerc
 
 Project version 0.0.1 is recorded in [pyproject.toml](pyproject.toml), the frontend package metadata and the API. Python dependencies remain in the backend requirements files.
 
-Read the [consolidated specification](docs/specification.md) for the architecture, data layout, behavioral contract and operating rules. Track unfinished work in the [gap list](docs/gap-list.md). Those remain the sources of truth for the product contract and open work; the user manual is practical guidance, not a separate specification.
+Read the [specification](docs/specification.md) for the architecture, data layout, behavioral contract, operating rules and current limitations. The user manual is practical guidance, not a separate specification.
 
 ## Start with Podman
 
@@ -52,4 +52,4 @@ npm --prefix frontend run build
 npm --prefix frontend run test:browser
 ```
 
-The full acceptance boundaries and current verification limits are in the [gap list](docs/gap-list.md).
+See the [specification](docs/specification.md#purpose-and-boundary) for acceptance boundaries and current implementation limits.
