@@ -39,6 +39,8 @@ class Service:
         self.data,self.schemas=data,schemas
         from .kost_validation import Config
         self.kost_config=Config.from_env()
+        from .candidate_workflow import review_required
+        self.require_independent_review=review_required()
         if database_url is not None:
             from .postgres import PostgresStore
             self.store=PostgresStore(database_url)
@@ -73,7 +75,7 @@ class Service:
             tx.save_transfer(b,revision)
             auto_enqueue(tx,b,report['id'],self.kost_config)
         return b
-    def plan(self,ident,tenant,actor,revision,targets,reason,selected_inputs=None):
+    def plan(self,ident,tenant,actor,revision,targets,reason,selected_inputs=None,*,single_candidate=False):
         b=self.get(ident,tenant)
         if b['revision']!=revision: raise Conflict('Stale revision')
         if b['state'] not in ('INSPECTED','PLANNED'): raise Conflict('Plan requires inspected SIPs')
@@ -85,10 +87,13 @@ class Service:
             planning_sips,bindings=inputs(self,b,selected_inputs)
         normalized=normalize(ident,planning_sips,targets)
         plan={'targets':normalized,'reason':reason,'author':actor,'created':now(),'inputs':[{'id':s['id'],'sha256':s['sha256']} for s in b['sips']]}
+        if single_candidate:
+            if selected_inputs is None or len(normalized)!=1:raise PackageError('Single candidate requires selected inputs and exactly one target')
+            if not self.require_independent_review:plan['mode']='single-candidate'
         plan['sha256']=sha(canonical(plan))
         if bindings is not None:
             from .prepared_review import extend_plan
-            plan=extend_plan(self,b,plan,bindings)
+            plan=extend_plan(self,b,plan,bindings,allow_source=single_candidate)
         b['plan']=plan;b['state']='PLANNED';b.pop('approval',None);b.pop('prepared_review_id',None)
         event(b,'restructuring-plan',actor,{'plan_sha256':plan['sha256'],'reason':reason,'targets':normalized})
         return self.store.save(b,revision)
@@ -132,16 +137,21 @@ class Service:
         b=self.get(ident,tenant)
         from .metadata_drafts import require_resolved
         prepared=(b.get('plan') or {}).get('format')==2
-        profile_version='4.0.0' if prepared else PROFILE_VERSION
-        profile_id='urn:ch-archive:aip-profile:'+profile_version
-        if prepared:
-            from .prepared_aip import current_review,check_authorization
-            current_review(self,b)
-            if not b.get('approval'):raise Conflict('Explicit prepared candidate authorization required')
-            if b['state']!='AIP_CANDIDATE':check_authorization(b,b.get('approval',{}),self.schemas,self.blob)
-        else:require_resolved(b)
         if b['revision']!=revision:raise Conflict('Stale revision')
         if b['state']=='AIP_CANDIDATE':return b
+        if prepared:
+            from .prepared_aip import current_review,check_authorization
+            if not self.require_independent_review and b['plan'].get('mode')=='single-candidate':
+                from .candidate_workflow import authorize
+                authorize(self,b,actor)
+            else:
+                current_review(self,b)
+                if not b.get('approval'):raise Conflict('Explicit prepared candidate authorization required')
+            check_authorization(b,b.get('approval',{}),self.schemas,self.blob,
+                                '5.0.0' if b.get('approval',{}).get('review_required') is False else '4.0.0')
+        else:require_resolved(b)
+        profile_version='5.0.0' if b.get('approval',{}).get('review_required') is False else '4.0.0' if prepared else PROFILE_VERSION
+        profile_id='urn:ch-archive:aip-profile:'+profile_version
         if b['state']!='APPROVED':raise Conflict('Reviewed mapping and preservation context required')
         approval=b.get('approval',{})
         if approval.get('profile_sha256')!=sha(profile_definition(self.schemas,profile_version)) or approval.get('plan_sha256')!=b['plan']['sha256'] or approval.get('context_sha256')!=sha(canonical(PreservationContext.model_validate(b.get('aip_context',{})).model_dump(mode='json'))):raise Conflict('Approval does not match current mapping/context')

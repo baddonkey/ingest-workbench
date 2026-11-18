@@ -70,8 +70,8 @@ def inputs(service, body, selected, *, current=True):
     return projected, bindings
 
 
-def extend_plan(service, body, plan, bindings):
-    if not any(i['prepared_id'] for i in bindings):
+def extend_plan(service, body, plan, bindings, *, allow_source=False):
+    if not any(i['prepared_id'] for i in bindings) and not allow_source:
         raise PackageError('Use the historical source-only plan contract when no prepared input is selected')
     plan.update(format=2, id=uid(), transfer_id=body['id'], tenant=body['tenant'],
                 inputs=bindings)
@@ -80,6 +80,7 @@ def extend_plan(service, body, plan, bindings):
         raise Conflict('Local prepared plan history limit reached')
     descriptor = put(service.data, canonical(plan))
     body.setdefault('prepared_plans', []).append({'sha256': plan['sha256'], 'descriptor_sha256': descriptor})
+    body.setdefault('prepared_review_id', None)
     return plan
 
 
@@ -141,7 +142,8 @@ def workspace(service, ident, tenant):
     if plan and plan.get('format') == 2:
         try: current_plan(service, body)
         except Conflict as exc: problem = str(exc)
-    return {'revision': body['revision'], 'state':body['state'], 'plan':plan, 'choices': choices, 'selected_inputs': selected, 'sips': projected,
+    return {'require_independent_review':service.require_independent_review,
+            'revision': body['revision'], 'state':body['state'], 'plan':plan, 'choices': choices, 'selected_inputs': selected, 'sips': projected,
             'input_notes':note_views(service,body,selected),
             'bindings': plan['inputs'] if plan and plan.get('format') == 2 else bindings,
             'current_findings': bindings, 'plan_current': problem is None, 'stale_reason': problem,

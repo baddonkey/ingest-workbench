@@ -31,8 +31,9 @@ def validate_package(data,schemas,expected_sha256=None,source_resolver=None):
         files=members(data)
         identity=json.loads(files['aip.json'])
         profile_version=identity.get('profile_version')
-        require(profile_version in ('3.0.0','4.0.0'),'Unknown AIP profile version')
-        prepared=profile_version=='4.0.0';profile_id='urn:ch-archive:aip-profile:'+profile_version
+        require(profile_version in ('3.0.0','4.0.0','5.0.0'),'Unknown AIP profile version')
+        operator=profile_version=='5.0.0'
+        prepared=profile_version in ('4.0.0','5.0.0');profile_id='urn:ch-archive:aip-profile:'+profile_version
         result['profile_id']=profile_id
         definition=json.loads(profile_definition(schemas,profile_version))
         require(set(definition['required_files'])<=set(files),'Required package member missing')
@@ -45,8 +46,8 @@ def validate_package(data,schemas,expected_sha256=None,source_resolver=None):
         descriptor=json_file(files,'aip.json');context=json_file(files,'metadata/preservation-context.json');description=json_file(files,'metadata/description.json')
         lineage=json_file(files,'metadata/lineage.json');representation=json_file(files,'metadata/representation.json');events=json_file(files,'evidence/events.json')
         if prepared:
-            from .aip_models_v2 import PreparationDescriptor,PreparedLineage
-            PreparationDescriptor.model_validate(descriptor);PreparedLineage.model_validate(lineage)
+            from .aip_models_v2 import PreparationDescriptor,PreparedLineage,OperatorDescriptor
+            (OperatorDescriptor if operator else PreparationDescriptor).model_validate(descriptor);PreparedLineage.model_validate(lineage)
         else:
             Descriptor.model_validate(descriptor);Lineage.model_validate(lineage)
         require(descriptor['profile_id']==profile_id and descriptor['profile_sha256']==sha(profile_definition(schemas,profile_version)),'Profile identity/fingerprint mismatch')
@@ -63,7 +64,10 @@ def validate_package(data,schemas,expected_sha256=None,source_resolver=None):
         plan=lineage['plan'];require(sha(canonical({k:v for k,v in plan.items() if k!='sha256'}))==plan['sha256']==descriptor['plan_sha256'],'Reviewed plan digest mismatch')
         require(lineage['aip_id']==aip_id and description['aip_id']==aip_id,'Cross-file AIP identity mismatch')
         targets=[t for t in plan['targets'] if t['aip_id']==aip_id];require(len(targets)==1 and targets[0]['label']==descriptor['label'],'Target AIP boundary mismatch')
-        target=targets[0];approval=descriptor['approval'];require(approval['author']==plan['author'] and approval['author']!=approval['approver'] and approval.get('context_author')!=approval['approver'],'Two-person mapping/context approval missing')
+        target=targets[0];approval=descriptor['approval']
+        require(approval['author']==plan['author'],'Plan author differs from authorization')
+        if not operator:
+            require(approval['author']!=approval['approver'] and approval.get('context_author')!=approval['approver'],'Two-person mapping/context approval missing')
         require(approval.get('profile_sha256')==descriptor['profile_sha256'] and approval['plan_sha256']==plan['sha256'] and approval['target_contexts'][aip_id]==descriptor['context_sha256'],'Approval does not bind this plan/context')
         prev='0'*64;event_ids=set()
         for event in events:
@@ -87,7 +91,8 @@ def validate_package(data,schemas,expected_sha256=None,source_resolver=None):
             selected_projection=project(SimpleNamespace(blob=dossier_blob,schemas=schemas),dossier)
             from .aip import context_for,selected_sources
             require(context==context_for(selected_projection,selected_sources(selected_projection,target)),'Prepared target context differs from reviewed snapshot')
-            require(any(e['type']=='prepared-input-review' and e['detail']==r for e in events for r in dossier['prepared_reviews'] if r['id']==approval['review_id']),'Independent preparation review event missing')
+            if not operator:
+                require(any(e['type']=='prepared-input-review' and e['detail']==r for e in events for r in dossier['prepared_reviews'] if r['id']==approval['review_id']),'Independent preparation review event missing')
         for sid,s in source_records.items():
             if prepared:
                 binding=next(i for i in plan['inputs'] if i['sip_id']==sid)
@@ -220,7 +225,7 @@ def validate_premis(root,descriptor,objects,context,events,files):
 
 def institutional_gate(service,transfer,policy):
     prepared=(transfer.get('plan') or {}).get('format')==2
-    version='4.0.0' if prepared else '3.0.0';profile_id='urn:ch-archive:aip-profile:'+version
+    version='5.0.0' if transfer.get('approval',{}).get('review_required') is False else '4.0.0' if prepared else '3.0.0';profile_id='urn:ch-archive:aip-profile:'+version
     reasons=[];fingerprint=sha(profile_definition(service.schemas,version))
     if transfer.get('active_metadata_drafts'):reasons.append('Saved metadata drafts require resolution before archival acceptance')
     if prepared:reasons.append('Prepared-input institutional acceptance remains unqualified')

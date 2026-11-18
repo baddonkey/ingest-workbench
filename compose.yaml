@@ -43,6 +43,7 @@ services:
       <<: *kost-environment
       DATA_DIR: /data
       SCHEMA_DIR: /application/schemas
+      AIP_REQUIRE_INDEPENDENT_REVIEW: ${AIP_REQUIRE_INDEPENDENT_REVIEW:-false}
       DATABASE_URL: ${POSTGRES_API_DATABASE_URL:-postgresql+psycopg://archive_dev:postgres-local-only@postgres:5432/archive_dev}
       OIDC_ISSUER: http://localhost:8080/realms/ingest-workbench
       OIDC_JWKS_URL: http://keycloak:8080/realms/ingest-workbench/protocol/openid-connect/certs
@@ -73,6 +74,7 @@ services:
       <<: *kost-environment
       DATA_DIR: /data
       SCHEMA_DIR: /application/schemas
+      AIP_REQUIRE_INDEPENDENT_REVIEW: ${AIP_REQUIRE_INDEPENDENT_REVIEW:-false}
       OIDC_ISSUER: http://localhost:8080/realms/ingest-workbench
       OIDC_JWKS_URL: http://keycloak:8080/realms/ingest-workbench/protocol/openid-connect/certs
       OIDC_ALLOWED_CLIENTS: archive-workbench

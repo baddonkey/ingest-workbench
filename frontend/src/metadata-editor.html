@@ -261,7 +261,7 @@
         <div class="editor-actions">
           <button class="secondary" (click)="openKostValidation(record.id)">{{text('inspectSnapshot')}}</button>
           <button class="secondary" (click)="downloadPrepared(record,'zip')">{{text('downloadPrepared')}}</button><button class="secondary" (click)="downloadPrepared(record,'evidence')">{{text('evidence')}}</button>
-          @if(canEdit()){<button (click)="usePrepared(record)" [disabled]="busy() || pendingCount()>0 || record.id!==frozenCurrent()?.id">{{text('useSnapshot')}}</button>}
+          @if(canEdit()){<button (click)="usePrepared(record)" [disabled]="busy() || handoffBusy() || pendingCount()>0 || record.id!==frozenCurrent()?.id">{{text('useSnapshot')}}</button>}
         </div>
         @if(record.id!==frozenCurrent()?.id || pendingCount()){<p class="help">{{text('snapshotStale')}}</p>}
       </article>

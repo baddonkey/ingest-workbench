@@ -156,6 +156,97 @@ class PreparedAipTests(ReviewFixture):
         self.assertTrue(validate_package(self.candidate(),ROOT/'schemas')['structural_valid'])
 
 
+class SingleCandidateTests(ReviewFixture):
+    def candidate_plan(self, selected=None):
+        from app.candidate_workflow import plan
+        body=self.current()
+        return plan(self.service,body['id'],'archive-a','operator',body['revision'],'Bridge candidate',
+                    'All SIPs in one candidate',selected or [
+                        {'sip_id':s['id'],'prepared_id':self.frozen['id'] if s['id']==self.sip['id'] else None}
+                        for s in body['sips']])
+
+    def build(self):
+        body=self.current()
+        return self.service.build(body['id'],'archive-a','operator',body['revision'])
+
+    def test_default_mixed_inputs_build_one_portable_candidate_without_claiming_review(self):
+        body=self.current()
+        self.service.upload(body['id'],'archive-a','operator',body['revision'],'1.2.0',synthetic_legacy('1.2.0'))
+        planned=self.candidate_plan()
+        self.assertEqual(len(planned['plan']['targets']),1)
+        built=self.build()
+        self.assertEqual(len(built['outputs']),1)
+        self.assertFalse(built['approval']['review_required'])
+        self.assertNotIn('review_id',built['approval'])
+        self.assertFalse(built.get('prepared_reviews'))
+        self.assertEqual(len(built['sips']),2)
+        output=built['outputs'][0];data=self.service.blob(output['sha256'])
+        result=validate_package(data,ROOT/'schemas',expected_sha256=output['sha256'])
+        self.assertTrue(result['structural_valid'],result['errors'])
+        self.assertEqual(result['sources'],2)
+        self.assertEqual(result['profile_id'],'urn:ch-archive:aip-profile:5.0.0')
+        self.assertFalse(result['preservation_ready'])
+        self.assertEqual(self.build()['outputs'],built['outputs'])
+        prepared_aip.validate_retained(built,self.service.blob,self.service.schemas)
+        self.operation('checkpoint',name='Successor cannot reuse authorization')
+        with self.assertRaises(Conflict):self.build()
+        prepared_aip.validate_retained(self.current(),self.service.blob,self.service.schemas)
+        self.assertTrue(validate_package(data,ROOT/'schemas')['structural_valid'])
+
+    def test_source_only_build_and_operator_download_are_tenant_scoped(self):
+        from fastapi.testclient import TestClient
+        from app import main
+        from app.auth import principal,Principal
+        body=self.service.create('Source only','archive-a','operator')
+        body=self.service.upload(body['id'],'archive-a','operator',0,'1.3.0',REFERENCE)
+        self.transfer,self.sip=body,body['sips'][0]
+        previous=main.service;main.service=self.service
+        self.addCleanup(setattr,main,'service',previous);self.addCleanup(main.app.dependency_overrides.clear)
+        def user(tenant,roles):
+            main.app.dependency_overrides[principal]=lambda:Principal('operator',tenant,frozenset(roles),'archive-workbench')
+        client=TestClient(main.app);base='/api/transfers/'+body['id']
+        request={'revision':body['revision'],'label':'Bridge candidate','reason':'No edits needed',
+                 'selected_inputs':[{'sip_id':self.sip['id'],'prepared_id':None}]}
+        user('archive-a',('archive-reader',))
+        self.assertEqual(client.post(base+'/candidate-plan',json=request).status_code,403)
+        user('archive-a',('archive-reader','archive-operator'))
+        planned=client.post(base+'/candidate-plan',json=request)
+        self.assertEqual(planned.status_code,200,planned.text)
+        built=client.post(base+'/build',json={'revision':planned.json()['revision']})
+        self.assertEqual(built.status_code,200,built.text)
+        output=built.json()['outputs'][0];path=base+'/outputs/'+output['id']
+        downloaded=client.get(path)
+        self.assertEqual(downloaded.status_code,200)
+        self.assertEqual(sha(downloaded.content),output['sha256'])
+        checked=validate_package(downloaded.content,ROOT/'schemas')
+        self.assertTrue(checked['structural_valid'],checked['errors'])
+        user('another-archive',('archive-reader','archive-operator'))
+        self.assertEqual(client.get(path).status_code,404)
+
+    def test_required_review_cannot_be_bypassed_by_operator_or_source_selection(self):
+        self.service.require_independent_review=True
+        body=self.current()
+        with self.assertRaises(Conflict):
+            self.candidate_plan([{'sip_id':self.sip['id'],'prepared_id':None}])
+        self.candidate_plan()
+        with self.assertRaises(Conflict):self.build()
+        self.review()
+        with self.assertRaises(Conflict):self.build()
+        body=self.current()
+        request={'request_id':str(uuid.uuid4()),'revision':body['revision'],'review_id':body['prepared_review_id'],
+                 'plan_sha256':body['plan']['sha256'],'reason':'Independent candidate authorization'}
+        prepared_aip.authorize(self.service,body['id'],'archive-a','reviewer',request)
+        built=self.build()
+        self.assertEqual(len(built['outputs']),1)
+        self.assertEqual(built['outputs'][0]['profile'],prepared_aip.PROFILE_ID)
+
+    def test_enabling_review_after_planning_blocks_unreviewed_build(self):
+        self.candidate_plan()
+        self.service.require_independent_review=True
+        with self.assertRaises(Conflict):self.build()
+        self.assertEqual(self.current()['outputs'],[])
+
+
 class PreparedAipApiTests(ReviewFixture):
     def test_role_tenant_explicit_authorization_build_download_and_replay(self):
         from fastapi.testclient import TestClient

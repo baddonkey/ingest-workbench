@@ -1,8 +1,8 @@
 # Ingest Workbench user manual
 
 This guide walks an archivist through a local reference workflow: receiving
-eCH-0160 submissions, inspecting and preparing them, arranging dossiers, and
-generating AIP candidates. It uses the English interface; some workspace
+eCH-0160 submissions, inspecting and preparing them, and combining one or more
+SIPs into one AIP candidate per transfer. It uses the English interface; some workspace
 controls also offer German, French and Italian.
 
 > **Important:** This is an educational reference application, not a production
@@ -35,9 +35,10 @@ using sample SIPs; names, counts and dates will differ in your work.
    The local example realm provides an operator, a reviewer and an auditor;
    credentials and roles are development-only and may have been changed in
    an existing realm. Use your configured account.
-3. Use an operator account to create transfers and prepare submissions. An
-   independent authorized reviewer is needed for review and authorization;
-   a reader can inspect evidence but cannot perform operator actions.
+3. Use an operator account to create transfers, prepare submissions and build
+   candidates. Independent review is disabled by default; a separate authorized
+   reviewer is needed only when enabled in server configuration. A reader can
+   inspect evidence but cannot perform operator actions.
 
 The **Transfers** overview lets you search by title or status and sort by title,
 status, SIP count or revision. Select a row to open it. Scroll the list or use
@@ -174,8 +175,8 @@ local proposal does not undo an operation already retained by the server.
 Use **Package > Download working SIP** for the selected package's current applied
 head, excluding pending proposals. Historical file-change events also offer that
 exact version's working SIP. This download is not a freeze or an approval.
-After applying changes, freeze and independently review a successor before
-candidate authorization. **Preview original content** still deliberately shows
+After applying changes, freeze a successor before candidate creation; when
+independent review is enabled, review and authorize it again. **Preview original content** still deliberately shows
 the retained original file, not its replacement.
 
 Local limits remain 256 MiB expanded SIP, 64 MiB SIP ZIP and 256 MiB replacement
@@ -378,8 +379,8 @@ same operation. None of these preparation decisions is archival acceptance.
 ![Retained sample review with explicit per-dossier outcomes, issue comments and an editing reason](images/sample-review.png)
 
 Sampling and sample-review notes support preparation. They do not replace full
-validation, an independent review of the selected frozen input, candidate
-authorization or external archival acceptance.
+validation, an independent review when required, candidate authorization or
+external archival acceptance.
 
 ![Edit history showing a sibling move from position 1 to 3, its undo and redo, and a separate note event](images/sibling-reorder-history.png)
 
@@ -426,11 +427,9 @@ before configuring or troubleshooting the integration.
 
 ## Freeze, validate and select a prepared version
 
-![Inline Validation view showing the working state, a frozen version, internal checks and actions for inspecting results and m:n arrangement](images/frozen-version.png)
-
 Open the packager's **Validation** tab. It stays in the editor rather than
 opening an overlay. The workflow is **Working state → Freeze & validate →
-Inspect results → m:n arrangement**.
+Inspect results → AIP candidate**.
 
 1. Save or discard pending proposals. The view explains what prevents freezing
    and offers those actions beside the working-state status.
@@ -448,8 +447,8 @@ Inspect results → m:n arrangement**.
    that exact artifact in the existing lower SIP-Validation panel. External
    results remain advisory; queued, unavailable, uncertain or missing results
    are not passes and do not automatically block arrangement.
-5. When satisfied, select **Use this version for m:n arrangement**. The mapping
-   opens with that exact version selected; this does not save the mapping or
+5. When satisfied, select **Use this version for AIP candidate**. Candidate creation
+   opens with that exact version selected; this does not save the inputs or
    authorize a candidate. Use **Download prepared SIP** and **Download
    METS/PREMIS evidence** as needed.
 
@@ -465,51 +464,62 @@ Freezing and its checks do not authorize a candidate or imply archival acceptanc
 
 ## Arrange, review and build
 
-### Arrange the selected inputs
+### Create one candidate from the transfer
 
-![Frozen-input mapping with the selected version, evidence downloads and expanded dossier metadata](images/mapping.png)
+![Single candidate creation with two SIP inputs, expanded metadata and candidate download](images/mapping.png)
 
-1. Open **m:n mapping**. If working preparation exists, select the current
-   frozen version for each affected SIP. Where permitted, an unchanged SIP can
-   use its submitted original.
-2. Review each selected input, its digest and receipt checks. Expand
-   **Selected metadata** to inspect the dossier's metadata.
-3. Give every top-level dossier exactly one **Target AIP** label. Use the same
-   label to combine dossiers, including dossiers from different SIPs; use
-   different labels to create separate candidates. Descendants stay with their
-   dossier. Unsupported cross-boundary relationships or shared files can block
-   the plan.
-4. Enter the **Reason for restructuring** and select **Save frozen-input
-   mapping**. A transfer with no working preparation instead offers **Save
-   mapping for review** on the original-input path.
+1. Receive all SIPs intended for this candidate in the **same transfer**, before
+   saving candidate inputs. For a separate candidate, create another transfer.
+2. Prepare each SIP as needed. Save any edits, then use **Validation →
+   Freeze & validate** with a **Snapshot reason**. Inspect the results. An
+   unchanged SIP may use its submitted original; preparation history requires
+   a current frozen version.
+3. Select **Use this version for AIP candidate**, or open the transfer's
+   **Create AIP candidate** tab. The current frozen inputs are preselected when
+   available. Check the selection for **every** SIP.
+4. Confirm the single **Target AIP** label and **Reason for restructuring**.
+   All dossier units are included automatically; there is no per-dossier
+   assignment or split into separate candidates.
+5. Click **Save candidate inputs**, then **Build AIP candidate**.
+   By default, the same operator can do both without signing out for a review.
+6. Click **Download AIP candidate**. Alternatively, open **AIP candidates**,
+   inspect status and fixity, and use **Verify package** or **Download candidate**.
+   This is the candidate ZIP, not the prepared SIP or a separate evidence ZIP.
 
-### Review and authorize
+Build stays disabled while selections are invalid, inputs are unsaved, or an
+operation is running. If independent review is configured, review and
+authorization are also required. Later edits or checkpoints require a new
+freeze and a newly saved plan; existing candidate bytes remain unchanged.
 
-On the frozen-input path, sign out and sign in as a *different* authorized
-reviewer. Reopen the transfer and its mapping; inspect the selected bytes,
-receipt findings, context and arrangement. Enter an **Independent review
-reason** and select **Record independent preparation review**. Download the
-review evidence if needed. Then enter a **Candidate authorization reason** and
-select **Authorize AIP candidate** when the reviewer intends that separate
-decision.
+### Optional independent review
 
-On the original-input path, the independent reviewer uses **Approve as
-reviewer**. The UI shows the actions applicable to the current path and state.
-Roles, current revisions and a different authenticated subject are enforced;
-changing a selection or later preparation may make review or authorization
-stale. Historical evidence remains available.
+Set `AIP_REQUIRE_INDEPENDENT_REVIEW=true` in the existing `.env` and recreate
+the services (Windows: `.\scripts\start_local.ps1 -Recreate`). The default is
+`false`; do not replace the rest of your configuration.
 
-### Build and inspect candidates
+When enabled, a *different* authorized reviewer opens **Create AIP candidate**,
+enters an **Independent review reason**, and selects **Record independent
+preparation review**. They then enter a **Candidate authorization reason** and
+select **Authorize AIP candidate**. The operator can then build and download.
+Roles, current revisions and independence are checked by the server.
 
-Sign back in as an authorized operator and select the available build action
-in **m:n mapping**. Once built, use **AIP candidates** to inspect each
-candidate's status, digest and structural/preservation-context results, then
-**Verify package** or **Download candidate**. Frozen-input mapping also offers
-candidate downloads alongside its review records.
+### Hand off to the AIS Turbo Ingest Bridge
+
+Give your bridge the downloaded `AIP-candidate-<version-id>.zip` as its payload.
+To produce multiple candidate ZIPs, repeat the workflow in separate transfers;
+the bridge can accept them together if its own interface supports that.
+Do not substitute **Download prepared SIP**, freeze evidence, or review evidence.
+
+The ZIP contains `aip.json`, selected payload under `objects/`, source hierarchy
+and lineage, METS/PREMIS, a SHA-256 manifest, and embedded preparation evidence.
+With review disabled it uses local profile **5.0.0**, explicitly recording that
+independent review was not required. Reviewed candidates keep profile **4.0.0**.
+The bridge must support the relevant contract; this workbench does not implement
+or certify AIS Turbo's importer, API, or descriptive-field mapping.
 
 Verification and structural validity are not institutional approval or
-preservation readiness. No repository deposit, descriptive-system acceptance
-or final archival acceptance is performed by this workflow.
+preservation readiness. Upload, repository deposit and AIS Turbo acceptance are
+separate external steps.
 
 ## Evidence and preservation context
 
@@ -543,7 +553,7 @@ unassessed. The shipped policy is not institutionally approved. See the
 | Upload is rejected | Check the selected profile, ZIP size and displayed findings. Do not relabel or upgrade a SIP to bypass validation. |
 | A control is disabled | Check your role, transfer state, pending changes, required reason, current version and whether an operation is still running. |
 | Freeze & validate is disabled | Read the explanation beside the action: wait for an operation, save or discard proposals, supply a snapshot reason, or use the already-frozen current version. An unchanged submission needs no manual edit or checkpoint. |
-| Review or mapping is stale | Reload, select the current frozen input, save the mapping again and obtain a fresh independent review and authorization. |
+| Candidate inputs or review are stale | Reload, select the current frozen input and save the inputs again. When independent review is enabled, obtain a fresh review and authorization. |
 | SIP Validator is unavailable or a submission is uncertain | Inspect the artifact status and service configuration; do not treat an error or missing report as a pass. Review the uncertain-submission warning before a re-run. |
 | A change or save reports an error | Read the message and retained history before retrying. Do not assume a failed response means no operation was recorded. |
 

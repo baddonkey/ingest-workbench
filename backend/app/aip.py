@@ -19,7 +19,7 @@ def el(parent,ns,name,value=None,**attrs):
     return node
 
 def profile_root(schemas,version=PROFILE_VERSION):
-    if version not in ('3.0.0','4.0.0'):raise PackageError('Unknown AIP profile version')
+    if version not in ('3.0.0','4.0.0','5.0.0'):raise PackageError('Unknown AIP profile version')
     return schemas.parent/'profiles/ch-aip'/version
 def profile_definition(schemas,version=PROFILE_VERSION):return (profile_root(schemas,version)/'profile.json').read_bytes()
 def profile_bundle(schemas,version=PROFILE_VERSION):
@@ -204,7 +204,7 @@ def make_premis(descriptor,objects,context,events):
 
 def assemble(service,transfer,target,aip_id,version,previous,created_at,events):
     prepared=transfer['plan'].get('format')==2
-    profile_version='4.0.0' if prepared else PROFILE_VERSION
+    profile_version='5.0.0' if transfer.get('approval',{}).get('review_required') is False else '4.0.0' if prepared else PROFILE_VERSION
     profile_id='urn:ch-archive:aip-profile:'+profile_version
     original_transfer=transfer
     if prepared:

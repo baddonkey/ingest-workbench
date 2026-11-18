@@ -19,7 +19,7 @@ export class MetadataEditor implements OnChanges,OnDestroy {
   kostStatuses=input<Record<string,string>>({});kostStatusesChange=output<Record<string,string>>();
   kostReport=input<KostReport|null>(null);kostPaths=input<Record<string,string>>({});
   kostReportChange=output<KostReport|null>();kostFileSelected=output<{path:string;input_sha256:string}>();
-  sourceSha256=input('');
+  sourceSha256=input('');handoffBusy=input(false);
   inspectOriginal=output<void>();arrange=output<void>();close=output<void>();about=output<void>();sourceDownload=output<'original'|'metadata'>();
   arrangePrepared=output<PreparedSelection>();
   previewFile=output<{id:string;language:EditorLanguage}>();
@@ -696,7 +696,7 @@ export class MetadataEditor implements OnChanges,OnDestroy {
     return target?panel.status(target.latest):this.text('validatorLoading');
   }
   usePrepared(record:PreparedInput){
-    if(this.busy() || this.pendingCount() || !this.canEdit() || record.id!==this.frozenCurrent()?.id)return;
+    if(this.busy() || this.handoffBusy() || this.pendingCount() || !this.canEdit() || record.id!==this.frozenCurrent()?.id)return;
     this.arrangePrepared.emit({sip_id:this.sipId(),prepared_id:record.id});
   }
   assessmentSha256=computed(()=>this.frozenCurrent()?.sha256 || (this.document()?.state.changed?'':this.document()?.source_sha256||''));

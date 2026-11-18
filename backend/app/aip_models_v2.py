@@ -48,6 +48,7 @@ class Plan(Strict):
     created: str
     inputs: list[Input]
     sha256: Digest
+    mode: Literal['single-candidate'] | None = None
 
 
 class PreparationDescriptor(Descriptor):
@@ -62,3 +63,19 @@ class PreparedLineage(Strict):
     aip_id: Uuid
     plan: Plan
     files: list[ObjectRecord]
+
+
+class OperatorAuthorization(Approval):
+    id: Uuid
+    inputs_sha256: Digest
+    review_required: Literal[False]
+    reason: str
+    production_acceptance: Literal[False]
+    context_snapshot: dict
+    resource_snapshots: list[dict]
+
+
+class OperatorDescriptor(PreparationDescriptor):
+    profile_id: Literal['urn:ch-archive:aip-profile:5.0.0']
+    profile_version: Literal['5.0.0']
+    approval: OperatorAuthorization
