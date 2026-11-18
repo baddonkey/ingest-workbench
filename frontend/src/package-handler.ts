@@ -1,5 +1,5 @@
 // Workspace interaction design informed by Package Turbo (see THIRD_PARTY_NOTICES.md).
-import { Component, HostListener, OnChanges, OnDestroy, SimpleChanges, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, HostListener, OnChanges, OnDestroy, SimpleChanges, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ArchiveApi } from './archive-api';
@@ -10,11 +10,13 @@ import { PreparedSelection } from './metadata-editor.types';
 import {ContextMenu,ContextMenuState} from './context-menu';
 import {KostFileFindings} from './kost-file-findings';
 import {KostReport} from './kost-report.types';
+import {RichPreview} from './rich-preview';
+import {EditorLanguage,editorText} from './metadata-editor.locale';
 
 interface PendingField {node_id:string;field_id:string;path:string;label:string;before:string;value:string}
 
 @Component({
-  selector: 'archive-package-handler', standalone: true, imports: [CommonModule, FormsModule, MetadataEditor,ContextMenu,KostFileFindings],
+  selector: 'archive-package-handler', standalone: true, imports: [CommonModule, FormsModule, MetadataEditor,ContextMenu,KostFileFindings,RichPreview],
   templateUrl: './package-handler.html', styleUrl: './package-handler.css',
 })
 export class PackageHandler implements OnChanges, OnDestroy {
@@ -28,6 +30,39 @@ export class PackageHandler implements OnChanges, OnDestroy {
     {label:'Edit working metadata',icon:'file-text',disabled:this.busy()||this.saving(),run:()=>this.setEditing(true)}]});}
   sourceContextKey(event:KeyboardEvent,node:PackageNode){if(event.key==='ContextMenu'||event.shiftKey&&event.key==='F10')this.sourceContext(event,node);}
   private readonly metadataEditor = viewChild(MetadataEditor);
+  private readonly contentPreview=viewChild<ElementRef<HTMLDialogElement>>('contentPreview');
+  readonly previewDetail=signal<PackageNodeDetail|null>(null);
+  readonly previewLoading=signal(false);
+  readonly previewError=signal('');
+  readonly previewLanguage=signal<EditorLanguage>('en');
+  private previewGeneration=0;
+  private previewController:AbortController|null=null;
+  previewText(key:string){return editorText(key,this.previewLanguage());}
+  previewOriginal(selection:{id:string;language:EditorLanguage}){
+    const file=this.document()?.nodes.find(node=>node.kind==='file'&&node.source_id===selection.id);
+    if(!file){this.error.set(editorText('previewUnavailable',selection.language));return;}
+    void this.openMemberPreview(file,selection.language);
+  }
+  async openMemberPreview(file:PackageNode,language:EditorLanguage='en'){
+    const generation=++this.previewGeneration;
+    this.previewController?.abort();this.previewController=new AbortController();
+    const controller=this.previewController,source=this.document()?.input_sha256;
+    const timeout=setTimeout(()=>controller.abort(new Error(this.previewText('previewTimeout'))),20_000);
+    this.previewLanguage.set(language);this.previewError.set('');this.previewDetail.set(null);this.previewLoading.set(true);
+    this.contentPreview()?.nativeElement.showModal();
+    try{
+      const detail=await this.api.request<PackageNodeDetail>(this.base()+'/nodes/'+encodeURIComponent(file.id),{signal:controller.signal});
+      if(detail.input_sha256!==source||detail.file?.id!==file.id||detail.file?.sha256!==file.sha256)throw new Error(this.previewText('previewFixityMismatch'));
+      if(generation===this.previewGeneration)this.previewDetail.set(detail);
+    }catch(error){if(generation===this.previewGeneration)this.previewError.set(error instanceof Error?error.message:this.previewText('previewFailed'));}
+    finally{clearTimeout(timeout);if(generation===this.previewGeneration)this.previewLoading.set(false);}
+  }
+  closePreview(event?:Event){event?.preventDefault();this.previewGeneration++;this.previewController?.abort();this.previewController=null;this.previewDetail.set(null);this.previewLoading.set(false);this.contentPreview()?.nativeElement.close();}
+  async downloadPreview(){
+    const file=this.previewDetail()?.file;if(!file)return;
+    try{await this.api.download(this.base()+'/nodes/'+encodeURIComponent(file.id)+'/content',file.title);}
+    catch(error){this.previewError.set(error instanceof Error?error.message:this.previewText('previewFailed'));}
+  }
   readonly kostStatuses = signal<Record<string,string>>({});
   readonly kostEnabled = signal(false);
   readonly kostReport = signal<KostReport|null>(null);
@@ -131,7 +166,7 @@ export class PackageHandler implements OnChanges, OnDestroy {
     }
   }
 
-  ngOnDestroy() { this.generation++; this.selectionGeneration++; }
+  ngOnDestroy() { this.generation++; this.selectionGeneration++;this.closePreview(); }
 
   @HostListener('window:beforeunload', ['$event'])
   beforeUnload(event: BeforeUnloadEvent) {
@@ -224,6 +259,7 @@ export class PackageHandler implements OnChanges, OnDestroy {
 
   async load(sipId: string) {
     if (!this.sips().some(sip => sip.id === sipId)) return;
+    this.closePreview();
     if (this.activeSipId !== sipId) this.preferredNode='';
     this.activeSipId = sipId;
     this.activeKey = this.transferId() + ':' + sipId + ':' + this.revision();

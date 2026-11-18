@@ -1,10 +1,32 @@
-import {Component,input,output,signal} from '@angular/core';
+import {Component,ElementRef,input,output,signal,viewChild} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {MetadataField,MetadataRow} from './metadata-editor.types';
 import {EditorLanguage,editorText} from './metadata-editor.locale';
 import {ContextMenu,ContextMenuState} from './context-menu';
 
-@Component({selector:'archive-metadata-field',standalone:true,imports:[FormsModule,ContextMenu],template:`
+@Component({selector:'archive-metadata-field',standalone:true,imports:[FormsModule,ContextMenu],styleUrl:'./metadata-field.css',template:`
+  @if((field().tag==='zusatzDaten' || field().tag==='eigenschaft') && propertyField();as property){
+    <div class="additional-data">
+      <textarea class="additional-summary" rows="3" [attr.aria-label]="propertyTitle()" [value]="propertySummary()" readonly></textarea>
+      <button type="button" class="additional-edit" [disabled]="disabled()" (click)="openProperties()">{{propertyEditLabel()}}</button>
+    </div>
+    <dialog #propertiesDialog [attr.aria-label]="propertyEditLabel()" (close)="propertyRows.set([])">
+      <h3>{{propertyTitle()}}</h3>
+      <form ngNativeValidate (ngSubmit)="saveProperties()">
+        <div class="property-rows">
+          @for(row of propertyRows();track row.id;let index=$index){
+            <div class="property-row">
+              <input [name]="'propertyName-'+index" [attr.aria-label]="text('name')" [attr.title]="text('name')" [ngModel]="row.attributes['name']" (ngModelChange)="updateProperty(index,'name',$event)" maxlength="8000" required pattern=".*\\S.*" [disabled]="disabled()">
+              <textarea rows="1" [name]="'propertyValue-'+index" [attr.aria-label]="text('searchValue')" [attr.title]="text('searchValue')" [ngModel]="row.text" (ngModelChange)="updateProperty(index,'value',$event)" [maxlength]="property.max_length" [disabled]="disabled()"></textarea>
+              <button type="button" class="property-remove" [attr.aria-label]="text('removeEntry')" [attr.title]="text('removeEntry')" [disabled]="disabled()" (click)="removeProperty(index)">&times;</button>
+            </div>
+          }@empty{<p>{{text(field().tag==='eigenschaft' ? 'noProperties' : 'noCharacteristics')}}</p>}
+        </div>
+        <button type="button" class="property-add" [disabled]="disabled() || propertyRows().length>=(property.maximum || 200)" (click)="addProperty(property)">{{text(field().tag==='eigenschaft' ? 'addProperty' : 'addCharacteristic')}}</button>
+        <div class="property-actions"><button type="button" (click)="propertiesDialog.close()">{{text('cancelSave')}}</button><button type="submit" class="property-save" [attr.title]="text('additionalDataProposal')" [disabled]="disabled()">{{text('saveChanges')}}</button></div>
+      </form>
+    </dialog>
+  }@else{
   @for(row of rows();track row.id;let index=$index){
     <div class="metadata-row" (contextmenu)="rowContext($event,index)" (keydown)="rowContextKey($event,index)">
       @if(field().children.length){
@@ -26,12 +48,33 @@ import {ContextMenu,ContextMenuState} from './context-menu';
     }@else{<p class="absent">{{text('empty')}}</p>}
   }
   @if(!disabled() && field().maximum!==1 && rows().length<(field().maximum || 200)){<button class="secondary" (click)="add()"><img src="/package-turbo/file-plus.svg" alt="">{{text('add')}}</button>}
+  }
   <archive-context-menu [state]="contextMenu()" (closed)="contextMenu.set(null)"/>
 `,styles:[`:host{display:block;min-width:0;font:inherit}textarea,select,input{display:block;width:100%;font:inherit;color:inherit;min-height:24px;height:24px;padding:2px 4px;border:1px solid var(--line,#c2d2cc);border-radius:2px;background:var(--paper,#fcfdfc);margin:0!important}textarea{resize:vertical;line-height:18px}textarea:focus{border-color:var(--accent,#16796f)}select{background:var(--control-gradient)}fieldset{border:1px solid var(--line);margin:5px 0;padding:6px;min-width:0}legend,label{font-size:12px}small{display:none}.metadata-row{margin:0}.span-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.span-fields>fieldset{display:flex;align-items:center;gap:4px;border:0;margin:0;padding:0}.span-fields>fieldset>legend{float:left;padding:0;white-space:nowrap;font-weight:400}.span-fields archive-metadata-field{flex:1;min-width:0}.date-point{display:flex;gap:2px;min-width:0;position:relative}.date-point>archive-metadata-field{flex:1;min-width:0}.date-details{flex:none;font-size:11px}.date-details summary{padding:0 3px;min-height:24px;line-height:24px;list-style:none;color:var(--muted)}.date-details[open]{position:absolute;z-index:5;right:0;top:0;background:var(--paper);border:1px solid var(--line);padding:4px;min-width:140px;box-shadow:0 3px 8px #0002}.row-actions{display:none;gap:4px;flex-wrap:wrap}.metadata-row:focus-within>.row-actions,.metadata-row:hover>.row-actions{display:flex}.row-actions button,button{min-height:20px;padding:1px 5px;font-size:10px;border:1px solid var(--line);border-radius:2px;background:var(--control-gradient);color:inherit}img{width:13px;height:13px;vertical-align:middle;margin-right:3px}.absent{font-size:11px;color:var(--muted);margin:2px 0}textarea:disabled,select:disabled{background:var(--workspace);opacity:1;color:inherit}`]})
 export class MetadataFieldEditor {
   field=input.required<MetadataField>(); rows=input.required<MetadataRow[]>(); language=input<EditorLanguage>('en'); disabled=input(false);
   changed=output<MetadataRow[]>();
   contextMenu=signal<ContextMenuState|null>(null);
+  propertiesDialog=viewChild<ElementRef<HTMLDialogElement>>('propertiesDialog');
+  propertyRows=signal<MetadataRow[]>([]);
+  propertyTitle(){return this.text(this.field().tag==='eigenschaft'?'fileProperties':'zusatzDaten');}
+  propertyEditLabel(){return this.text(this.field().tag==='eigenschaft'?'editFileProperties':'editAdditionalData');}
+  propertyField(){return this.field().tag==='eigenschaft'?this.field():this.field().children.find(field=>field.tag==='merkmal');}
+  propertyValues(){return this.field().tag==='eigenschaft'?this.rows():this.rows().flatMap(row=>row.children['merkmal']||[]);}
+  propertySummary(){return this.propertyValues().map(row=>row.attributes['name']+': '+row.text).join('\n')||this.text(this.field().tag==='eigenschaft'?'noProperties':'noCharacteristics');}
+  openProperties(){this.propertyRows.set(structuredClone(this.propertyValues()));this.propertiesDialog()?.nativeElement.showModal();}
+  updateProperty(index:number,key:'name'|'value',value:string){this.propertyRows.update(rows=>rows.map((row,i)=>i!==index?row:key==='name'?{...row,attributes:{...row.attributes,name:value}}:{...row,text:value}));}
+  addProperty(field:MetadataField){this.propertyRows.update(rows=>[...rows,this.newRow(field)]);}
+  removeProperty(index:number){this.propertyRows.update(rows=>rows.filter((_,i)=>i!==index));}
+  saveProperties(){
+    if(this.field().tag==='eigenschaft')this.changed.emit(structuredClone(this.propertyRows()));
+    else{
+      const container=structuredClone(this.rows()[0]||this.newRow(this.field()));
+      container.children['merkmal']=structuredClone(this.propertyRows());
+      this.changed.emit(this.propertyRows().length?[container]:[]);
+    }
+    this.propertiesDialog()?.nativeElement.close();
+  }
   rowContext(event:MouseEvent|KeyboardEvent,index:number){event.preventDefault();event.stopPropagation();const invoker=event.currentTarget as HTMLElement,bounds=invoker.getBoundingClientRect();this.contextMenu.set({x:event instanceof MouseEvent?event.clientX:bounds.left,y:event instanceof MouseEvent?event.clientY:bounds.bottom,label:this.text(this.field().tag,this.field().label),invoker,commands:[
     {label:this.text('copyValue'),icon:'copy',run:()=>{void navigator.clipboard.writeText(this.rows()[index].text).catch(()=>{});}},
     {label:this.text('removeEntry'),icon:'x',disabled:this.disabled()||this.rows().length<=this.field().minimum,run:()=>this.remove(index)},

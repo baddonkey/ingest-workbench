@@ -5,6 +5,7 @@ import {ArchiveApi} from './archive-api';
 import {KEYCLOAK} from './identity';
 import {KostEntry,KostReport,kostOutcome} from './kost-report.types';
 import {KostFileFindings} from './kost-file-findings';
+import {PreparedInput} from './metadata-editor.types';
 
 interface KostRun {
   id:string;state:string;result:'valid'|'invalid'|'error'|null;remote_status?:string;
@@ -21,6 +22,8 @@ interface KostHistory {runs:KostRun[];next:string|null}
 export class KostValidation implements OnChanges,OnDestroy {
   transferId=input.required<string>();sipId=input.required<string>();revision=input.required<number>();
   sourceSha256=input('');
+  targetLabels=input<Record<string,string>>({});
+  preparedInputs=input<PreparedInput[]>([]);
   statuses=output<Record<string,string>>();
   serviceEnabled=output<boolean>();
   reportChanged=output<KostReport|null>();
@@ -30,6 +33,7 @@ export class KostValidation implements OnChanges,OnDestroy {
   readonly inventory=signal<KostInventory|null>(null);
   readonly chosen=signal('received');
   readonly selected=computed(()=>this.inventory()?.targets.find(target=>target.target_id===this.chosen())||null);
+  readonly selectedSnapshot=computed(()=>this.preparedInputs().find(record=>record.id===this.selected()?.prepared_id)||null);
   readonly expanded=signal(false);readonly historyOpen=signal(false);
   readonly runs=signal<KostRun[]>([]);readonly next=signal<string|null>(null);
   readonly error=signal('');readonly working=signal(false);readonly historyBusy=signal(false);
@@ -52,6 +56,7 @@ export class KostValidation implements OnChanges,OnDestroy {
   private controller:AbortController|null=null;
   private attempt:{target:string;body:object}|null=null;
   canRun(){return this.identity.hasRealmRole('archive-operator');}
+  targetLabel(target:KostTarget|null){return target?(this.targetLabels()[target.target_id]||target.label):'';}
   base(){return '/api/transfers/'+this.transferId()+'/sips/'+this.sipId()+'/kost-validations';}
   active(run:KostRun|null|undefined){return !!run && run.state!=='COMPLETE' && run.state!=='SUBMISSION_UNKNOWN';}
   status(run:KostRun|null|undefined):string {

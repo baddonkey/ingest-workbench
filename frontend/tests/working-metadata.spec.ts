@@ -34,6 +34,16 @@ test('all navigator descendants, shared file references and pane selection remai
   await content.locator('[data-navigation-key="'+file.key+'"] .metadata-object').click();
   await expect(content.getByRole('button',{name:'Dossiers',exact:true})).toHaveAttribute('aria-pressed','true');
   await expect(content.locator('[data-navigation-key="'+file.key+'"] .metadata-object')).toHaveAttribute('aria-current','true');
+  const breadcrumbs=editor.getByRole('navigation',{name:'Object path',exact:true});
+  await expect(breadcrumbs.locator('[aria-current="page"]')).toContainText(fileTitle);
+  const logicalParent=dossierRows.find(row=>row.key===file.parent_key)!;
+  const parentTitle=(nodes.get(logicalParent.object_id) as {title:string}).title;
+  await breadcrumbs.getByRole('button',{name:parentTitle,exact:true}).click();
+  await expect(breadcrumbs.locator('[aria-current="page"]')).toContainText(parentTitle);
+  await expect(content.locator('[data-navigation-key="'+logicalParent.key+'"] .metadata-object')).toHaveAttribute('aria-current','true');
+  await expect(content.getByRole('button',{name:'Dossiers',exact:true})).toHaveAttribute('aria-pressed','true');
+  await content.locator('[data-navigation-key="'+file.key+'"] .metadata-object').click();
+  const logicalPath=await breadcrumbs.innerText();
   const branch=classificationRows.find(row=>classificationRows.some(child=>child.parent_key===row.key))!;
   const descendants=new Set<string>([branch.key]);
   for(const row of classificationRows)if(row.parent_key&&descendants.has(row.parent_key))descendants.add(row.key);
@@ -52,6 +62,14 @@ test('all navigator descendants, shared file references and pane selection remai
   const inventoryFile=inventoryRows.find(row=>row.object_id===file.object_id)!;
   await content.locator('[data-navigation-key="'+inventoryFile.key+'"] .metadata-object').click();
   await expect(content.getByRole('button',{name:'Package content',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(breadcrumbs.locator('[aria-current="page"]')).toContainText(fileTitle);
+  expect(await breadcrumbs.innerText()).not.toBe(logicalPath);
+  const inventoryParent=inventoryRows.find(row=>row.key===inventoryFile.parent_key)!;
+  const inventoryParentTitle=(nodes.get(inventoryParent.object_id) as {title:string}).title;
+  await breadcrumbs.getByRole('button',{name:inventoryParentTitle,exact:true}).click();
+  await expect(content.getByRole('button',{name:'Package content',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(breadcrumbs.locator('[aria-current="page"]')).toContainText(inventoryParentTitle);
+  await content.locator('[data-navigation-key="'+inventoryFile.key+'"] .metadata-object').click();
   const classificationFile=classificationRows.find(row=>row.object_id===file.object_id)!;
   const contentList=content.locator('.object-list');
   await contentList.evaluate(element=>{element.style.maxHeight='24px';});
@@ -87,6 +105,10 @@ test('all navigator descendants, shared file references and pane selection remai
   await contentList.evaluate(element=>{element.style.maxHeight='';});
   await expect(classification.locator('.metadata-object')).toHaveCount(classificationRows.length);
   await page.screenshot({path:resolve('..','var','browser','complete-navigators-desktop.png'),fullPage:true});
+  if(process.env['ARCHIVE_UPDATE_DOCS']==='true'){
+    await page.setViewportSize({width:1600,height:1100});
+    await page.screenshot({path:resolve('..','docs','images','nested-records.png'),fullPage:true});
+  }
   await page.setViewportSize({width:390,height:844});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
   await page.screenshot({path:resolve('..','var','browser','complete-navigators-mobile.png'),fullPage:true});

@@ -57,12 +57,23 @@ when redistributing dependencies or build outputs.
 | --- | --- | --- | --- |
 | @angular/common, @angular/compiler, @angular/core, @angular/forms, @angular/platform-browser | 21.2.26 | MIT | Runtime |
 | keycloak-js | 26.2.2 | Apache-2.0 | Runtime |
+| pdfjs-dist | 6.5.438 | Apache-2.0 | Opt-in PDF/JPEG-2000 preview workers |
 | rxjs | 7.8.2 | Apache-2.0 | Runtime |
 | tslib | 2.8.1 | 0BSD | Runtime |
+| utif2 | 4.1.0 | MIT | Opt-in TIFF preview worker |
 | @angular/build, @angular/cli | 21.2.26 | MIT | Development/build |
 | @playwright/test | 1.65.0 | Apache-2.0 | Browser tests |
 | @types/node | 26.6.6 | MIT | Development types |
 | typescript | 5.9.3 | Apache-2.0 | Development/build |
+
+Passive previews lazy-load PDF.js (Apache-2.0) and UTIF2 (MIT, copyright
+2017 Photopea). UTIF2 uses pako (MIT, copyright 2014-2017 Vitaly Puzrin and
+Andrei Tuputcyn). The build copies the complete installed notices to
+`/pdfjs/LICENSE`, `/preview-decoder/utif2/LICENSE` and
+`/preview-decoder/pako/LICENSE`, alongside the shipped workers and decoder
+assets. PDF.js decoder/font assets retain the additional notices included in
+their distributed directories; those assets must not be separated from their
+applicable notices.
 
 Two transitive data packages explicitly require attribution: [caniuse-lite](https://github.com/browserslist/caniuse-lite)
 1.0.30001826, by Ben Briggs and contributors, is CC-BY-4.0; and
@@ -79,6 +90,8 @@ Transitive Python dependencies are not locked; the following is a snapshot of
 the installed Linux API image, based on distribution license metadata. Other
 resolutions or platforms can differ. The image retains wheel-provided license
 files in each installed distribution's `.dist-info/licenses` directory.
+The metadata-import additions (`openpyxl`, `defusedxml`, `et_xmlfile`) were
+also checked against the deployed API image on 2026-11-17.
 
 | Distribution | Version | Declared license |
 | --- | --- | --- |
@@ -90,6 +103,8 @@ files in each installed distribution's `.dist-info/licenses` directory.
 | cffi | 2.1.1 | MIT-0 |
 | click | 8.5.1 | BSD-3-Clause |
 | cryptography | 50.0.2 | Apache-2.0 OR BSD-3-Clause |
+| defusedxml | 0.7.1 | PSFL |
+| et_xmlfile | 2.0.0 | MIT |
 | fastapi | 0.162.5 | MIT |
 | greenlet | 3.5.6 | MIT AND PSF-2.0 |
 | h11 | 0.16.0 | MIT |
@@ -100,6 +115,7 @@ files in each installed distribution's `.dist-info/licenses` directory.
 | Mako | 1.4.3 | MIT |
 | MarkupSafe | 3.0.4 | BSD-3-Clause |
 | opentelemetry-api | 1.45.2 | Apache-2.0 |
+| openpyxl | 3.1.5 | MIT |
 | pip | 25.0.1 | MIT |
 | psycopg, psycopg-binary | 3.3.9 | LGPL-3.0-only |
 | pycparser | 3.12 | BSD-3-Clause |

@@ -93,9 +93,129 @@ The embedded Package Turbo-inspired workspace is part of the existing transfer l
 | PH-14 | Provide version-bound counts, sizes, format assessments, completeness, broken-reference and validation statistics with object drill-down. |
 | PH-15 | Safe, version-bound previews for supported text, image, PDF and audiovisual formats; generated derivatives never replace originals. |
 | PH-16 | Import external metadata as a retained proposal; compare, resolve identity/reference conflicts and apply only reviewed changes. |
-| PH-17 | Persist each applied edit, support named checkpoints, show pending/in-flight/retained state, deduplicate exact retries and reject stale concurrent writes. |
+| PH-17 | Save all pending metadata-field proposals across a SIP atomically under one operation/reason, revision and undo step, retaining per-field identities and before/after evidence. Persist each applied operation, support named checkpoints, show pending/in-flight/retained state, deduplicate exact retries and reject stale concurrent writes. |
 | PH-18 | Complete German, French, Italian and English UI labels, help, findings, history and actions; preserve producer-supplied values unchanged. |
 | PH-19 | Preserve reviewed Package Turbo SVG assets/action mappings and notices; provide accessible localized labels. |
+
+Local dossier sampling uses `sha256-ranked-v1`: filter applied dossier names and
+references case-insensitively, rank by SHA-256 of UTF-8 `seed + NUL + node_id`
+(node ID breaks ties), select the requested count and present results in source
+order. Percentage sizes round up; results above 500 selections fail explicitly.
+Retained sampling operations bind the algorithm, parameters, metadata head and
+digest, population digest and selections. Separate attributed review operations
+retain a checked/issue outcome and comment for every selected object; issues
+require comments. Review evidence remains bound to that original sampling
+version after subsequent edits. These advisory preparation notes do not satisfy
+independent frozen-input review or candidate authorization.
+
+Local reviewed bulk metadata changes target up to 200 distinct search-matching
+objects and only editable scalar, single-valued fields common to all targets.
+Protected, structured, attributed and repeated fields are excluded. A read-only
+server preview applies the shared batch validator and trusted XSD to the exact
+working baseline, returning every actual before/after change and the proposed
+metadata digest; unchanged values are skipped. Apply uses that exact reviewed
+command identity, baseline, value and reason. Changed proposals require another
+preview; stale/invalid proposals fail atomically. Retained batch evidence,
+idempotent retry and undo use the same contract as package-wide metadata Save.
+This does not implement bulk hierarchy or physical-content operations.
+
+Local preparation statistics bind the exact displayed metadata digest/operation,
+source ZIP digest and transfer revision read. Historical API projections use
+the requested operation's metadata, not current-head metadata. Counts cover
+canonical objects, retained payload files/bytes, populated/empty scalar form
+fields, unmet exposed field/attribute requirements, broken file references and
+unreferenced payload files. Field indicators are not a semantic completeness
+grade or a substitute for trusted XSD/receipt checks. Drilldowns preserve the
+binding and open known objects/fields; lists are paged in groups of 100.
+Format/finding counts require a structured report for the exact assessed artifact
+including original/frozen identity, not merely an equal ZIP digest. They count
+report entries/findings, retain run/input/report identities in drilldowns, and
+do not map unknown paths to unrelated objects. Missing assessments remain
+unassessed rather than zero or passing.
+
+Local external-metadata import accepts UTF-8 CSV/JSON, text-only single-sheet
+XLSX and trusted-profile eCH-0160 XML. Explicit templates define the tabular
+contract: `object_id`, `field`, `value`, optional `before`; JSON is an array.
+CSV templates use JSON-string value/baseline columns and XLSX uses text cells
+to avoid formula execution. Limits are 256 KiB source, 2,000 source rows, 200
+changed/unresolved fields, and 100 XLSX ZIP members / 4 MiB expanded data.
+XLSX formulas, numeric/date cells, external relationships, unsafe ZIP members,
+and XML DTDs are rejected.
+
+`import-record` retains the exact original source bytes/digest and baseline
+without changing metadata or undo state. Every changed/unresolved row needs an
+explicit apply/mapping or reasoned exclusion. Application is limited to editable
+scalar, single-valued fields; structured/repeated changes, native IDs, references,
+payload paths and hierarchy are not imported. XML differences outside that scope
+remain visible as blocked exclusions. Unknown identities/fields can be mapped to
+eligible existing targets; duplicate destinations are rejected. External
+baseline differences require explicit review, never automatic overwrite.
+Read-only preview and atomic application share the batch validator and trusted
+XSD, bind the retained proposal as the exact current operation head, and retain
+decisions, actual edits, actor/reason, exact retries and one-step undo. An
+all-excluded review retains decisions without XML serialization or an undo step.
+Intervening operations require a retained successor proposal. Exact raw sources
+are included in METS/PREMIS evidence and verified through freeze/recovery;
+templates/source downloads require reader access, record/preview/apply require
+operator access, and all are SIP/tenant scoped.
+
+Original-file previews are opt-in and retain the original SIP/member identity and
+SHA-256 even when launched from the working editor. The authenticated client
+fetches bounded attachment bytes, checks exact size and SHA-256, and performs no
+metadata/evidence write. Existing escaped UTF-8 previews remain separate.
+HTML, SVG and unknown formats remain attachment-only; no submitted document is
+embedded in an iframe/object or exposed as interactive HTML.
+
+The passive browser preview policy supports PNG/JPEG/GIF/WebP, bounded classic
+TIFF and gray/RGB boxed JP2 (8 MiB, 8192 pixels per side, 16,000,000 pixels);
+canvas-only PDF (12 MiB, 200 pages, viewport at most 1600 by 2400 pixels);
+and native audio/video controls for supported WAV/MP3/Vorbis-or-Opus Ogg/M4A/
+MP4/WebM codecs (32 MiB, positive finite duration up to two hours, bounded video
+dimensions). Image sequences use only the first frame. Header eligibility is
+not format validation. PDF scripts, links, forms and annotation surfaces are
+not enabled; unsupported/oversized embedded content can be omitted. Previews
+are explicitly not completeness/fidelity assessments.
+
+Manifest loading, source loading/decoding and each PDF page render have
+20-second deadlines. Decoding uses lazy same-origin PDF.js assets and dedicated
+TIFF/JP2 workers; closure cancels work, clears canvases, stops media and revokes
+Blob URLs. Runtime failures remain explicit, with original downloads available.
+Browser-side bounds are not isolated-process memory quotas, malware quarantine
+or production qualification. No generated preview replaces or modifies original
+bytes, working metadata, receipts or candidate evidence.
+
+Local `content-edit` operations support reviewed payload-file rename and byte
+replacement. Preview is read-only and binds revision, original SIP digest,
+operation head, stable file identity, action and exact source/name. Apply retains
+actor/reason, before/after paths, sizes, SHA-256 and exact content archives under
+operation contract 9, with shared undo/redo/restore and exact retries. Rename
+cannot replace bytes; replacement cannot implicitly rename, change native IDs,
+references, protected headers or schema members. The existing submitted checksum
+algorithm is retained and its digest recomputed. Trusted XSD and complete receipt
+checks run against the resulting SIP before applying the operation.
+
+Working metadata and payload histories are independent snapshots under the same
+operation head; intervening metadata edits, notes and compensation do not reset
+payload bytes. Read-only working-SIP downloads and statistics project that head,
+including historical heads. METS/PREMIS links each retained content archive;
+byte-exact ZIP recipes reuse original members and retained metadata versions,
+keeping changed payloads once rather than copying all unchanged payloads into
+every preparation archive. Replay verifies the exact authorized delta, not merely
+the resulting inventory's internal consistency. Recovery retains referenced
+content archives as well as their preparation evidence.
+
+Frozen-input contract 4 permits only these replay-verified payload changes and
+retains complete original/prepared member lineage. All file-reference occurrences
+and attributes remain conserved. Earlier frozen-input contracts keep their
+metadata-only member-conservation rules. Selected-input review and self-contained
+candidate verification use the exact frozen bytes; subsequent changes invalidate
+current review/authorization rather than rewriting sealed artifacts.
+
+The existing 64 MiB ZIP / 256 MiB expanded package and evidence limits still
+apply; replacement sources are capped at 256 MiB before packaging. Nested frozen
+evidence can exceed its limit even when the working SIP fits. Failure leaves
+the retained head and prior freezes unchanged. File/folder creation, moves,
+removal and complete SIP creation are separate unfinished acceptance slices.
 
 ## Evidence and immutability
 

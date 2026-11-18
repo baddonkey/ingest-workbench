@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi.testclient import TestClient
 from lxml import etree as ET
 import test_metadata_drafts as drafts
-from app import main, working_metadata as working
+from app import main, working_metadata as working, preparation_statistics
 from app.auth import Principal,principal
 from app.metadata_drafts import require_resolved
 from app.packages import PackageError,sha,xml,members
@@ -40,6 +40,183 @@ class WorkingFixture(drafts.DraftFixture):
 
 
 class WorkingTests(WorkingFixture):
+    def test_statistics_bind_current_and_historical_metadata_without_mutating_receipt(self):
+        before=self.document();retained=self.current()
+        stats=before['statistics']
+        self.assertEqual(stats['binding'],dict(source_sha256=self.sip['sha256'],
+            metadata_sha256=before['state']['metadata_sha256'],operation_id=None,revision=before['revision']))
+        self.assertEqual(sum(len(items) for items in stats['objects'].values()),len(before['nodes']))
+        self.assertEqual(len(stats['payload_files']),len(self.sip['files']))
+        original_data=self.service.blob(self.sip['sha256'])
+        original=members(original_data)
+        self.assertEqual(stats['payload_bytes'],sum(len(original[file['path']]) for file in self.sip['files'].values()))
+        self.assertEqual(self.current(),retained)
+        node,field=self.find_field('provenienz','systemBeschreibung')
+        was_empty=any(item['field_id']==field['id'] for item in stats['empty_scalar_fields'])
+        record=self.edit('provenienz','systemBeschreibung','Populated for exact-version statistics')['operation']
+        changed=self.document()['statistics']
+        self.assertEqual(changed['binding']['operation_id'],record['id'])
+        self.assertEqual(changed['populated_scalar_fields'],stats['populated_scalar_fields']+int(was_empty))
+        self.assertFalse(any(item['field_id']==field['id'] for item in changed['empty_scalar_fields']))
+        self.edit()
+        historical=working.workspace(self.service,self.transfer['id'],'archive-a',self.sip['id'],record['id'])['statistics']
+        self.assertEqual(historical['binding']['metadata_sha256'],record['after_metadata_sha256'])
+        self.assertEqual(historical['binding']['operation_id'],record['id'])
+        self.assertEqual(historical['empty_scalar_fields'],changed['empty_scalar_fields'])
+        self.assertEqual(self.current()['sips'][0],retained['sips'][0])
+        self.assertEqual(self.service.blob(self.sip['sha256']),original_data)
+
+    def test_statistics_detect_broken_references_and_missing_nested_required_values(self):
+        from app import editor_fields as fields
+        root=xml(members(self.service.blob(self.sip['sha256']))[self.sip['metadata_path']])
+        target=root.find('.//'+fields.A+'dateiRef').text
+        for reference in root.iter(fields.A+'dateiRef'):
+            if reference.text==target:reference.text='missing-file-identity'
+        organisation=root.find('.//'+fields.A+'ablieferndeStelle')
+        organisation.getparent().remove(organisation)
+        required_date=root.find('.//'+fields.A+'entstehungszeitraum/'+fields.A+'von')
+        required_date.getparent().remove(required_date)
+        nodes,_=fields.catalog(root,fields.schema(self.service.schemas,self.sip))
+        stats=preparation_statistics.project(root,nodes,self.sip['files'],{})
+        reversed_payload=dict(reversed(list(self.sip['files'].items())))
+        self.assertEqual(preparation_statistics.project(root,nodes,reversed_payload,{}),stats)
+        self.assertTrue(stats['broken_references'])
+        self.assertTrue(all(item['detail']=='missing-file-identity' and item['node_id']
+                            for item in stats['broken_references']))
+        self.assertTrue(any(self.sip['files'][target]['path']==item['detail'] for item in stats['unreferenced_payload']))
+        self.assertTrue(any(item['detail']=='ablieferndeStelle' for item in stats['missing_required']))
+        self.assertTrue(any(item['detail'].endswith('/von') for item in stats['missing_required']))
+
+    def batch_edits(self):
+        edits=[]
+        for kind,tag,text in [('ablieferung','ablieferndeStelle','Atomic submitting organisation'),
+                              ('provenienz','systemBeschreibung','Atomic system description')]:
+            node,field=self.find_field(kind,tag)
+            values=copy.deepcopy(field['values']) or [self.new_row(field)]
+            values[0]['text']=text
+            edits.append(dict(node_id=node['id'],field_id=field['id'],before=field['values'],values=values))
+        return edits
+
+    def test_batch_save_is_one_revision_with_per_field_evidence_and_one_undo_redo_step(self):
+        before=self.document();edits=self.batch_edits()
+        record=self.operation('edit-batch',edits=edits)['operation']
+        after=self.document()
+        self.assertEqual(after['revision'],before['revision']+1)
+        self.assertEqual(len(after['history']),1)
+        self.assertEqual(len(after['state']['undo']),1)
+        self.assertEqual(record['version'],6)
+        self.assertEqual(len(record['changes']['edits']),2)
+        for change,proposal in zip(record['changes']['edits'],edits):
+            self.assertEqual(change['node_id'],proposal['node_id'])
+            self.assertEqual(change['before'],proposal['before'])
+            self.assertEqual(change['proposed'],proposal['values'])
+        self.operation('undo')
+        self.assertEqual(self.document()['state']['metadata_sha256'],before['state']['metadata_sha256'])
+        self.operation('redo')
+        self.assertEqual(self.document()['state']['metadata_sha256'],after['state']['metadata_sha256'])
+        working.validate_retained(self.current(),self.service.blob,self.service.schemas)
+
+    def test_batch_save_rejects_late_invalid_stale_duplicate_and_protected_fields_atomically(self):
+        edits=self.batch_edits();before=self.current()
+        invalid=copy.deepcopy(edits);invalid[-1]['values'][0]['text']='invalid\x00'
+        stale=copy.deepcopy(edits);stale[-1]['before']=[{'id':'stale-row'}]
+        node,field=self.find_field('datei','name')
+        protected=dict(node_id=node['id'],field_id=field['id'],before=field['values'],values=[])
+        for proposed,error in [(invalid,PackageError),(stale,Conflict),([edits[0],edits[0]],PackageError),
+                               (edits+[protected],PackageError),([],PackageError)]:
+            with self.subTest(proposed=proposed),self.assertRaises(error):
+                self.operation('edit-batch',edits=proposed)
+            self.assertEqual(self.current(),before)
+
+    def test_batch_save_retry_and_retained_scope_verification(self):
+        doc=self.document()
+        request=dict(request_id=str(uuid.uuid4()),revision=doc['revision'],source_sha256=doc['source_sha256'],
+                     base_operation_id=doc['state']['head'],kind='edit-batch',reason='Atomic retry',edits=self.batch_edits())
+        first=working.command(self.service,self.transfer['id'],'archive-a','editor',self.sip['id'],request)
+        replay=working.command(self.service,self.transfer['id'],'archive-a','editor',self.sip['id'],request)
+        self.assertEqual(first['operation'],replay['operation'])
+        self.assertTrue(replay['replayed'])
+        self.assertEqual(len(self.document()['history']),1)
+        with self.assertRaises(Conflict):
+            working.command(self.service,self.transfer['id'],'archive-a','editor',self.sip['id'],
+                            {**request,'reason':'Changed retry'})
+        record=first['operation'];info=working.fields.schema(self.service.schemas,self.sip)
+        forged=copy.deepcopy(record);forged['changes']['edits'][-1]['after'][0]['text']='Unapproved retained value'
+        with self.assertRaises(PackageError):
+            working.verify_batch(self.service.blob(record['before_metadata_sha256']),
+                                 self.service.blob(record['after_metadata_sha256']),forged,info,self.service.schemas,self.sip)
+        working.validate_retained(self.current(),self.service.blob,self.service.schemas)
+
+    def test_batch_save_freezes_and_recovers_under_all_trusted_profiles(self):
+        from app import prepared_inputs
+        for case in json.loads((ROOT/'fixtures/corpus.json').read_text(encoding='utf-8'))['cases']:
+            with self.subTest(case=case['file']):
+                self.transfer,self.sip,_=self.create(case)
+                self.operation('edit-batch',edits=self.batch_edits())
+                doc=self.document()
+                frozen=prepared_inputs.create(self.service,self.transfer['id'],'archive-a','editor',self.sip['id'],
+                    dict(request_id=str(uuid.uuid4()),revision=doc['revision'],source_sha256=doc['source_sha256'],
+                         operation_id=doc['state']['head'],reason='Review exact atomic package save'))['prepared_input']
+                prepared_inputs.validate_record(self.current(),frozen,self.service.blob,self.service.schemas)
+        snapshot=self.folder/'batch-backup';report=backup(self.service,snapshot,actor='backup',quiesced=True)
+        destination=self.folder/'batch-restored';store=self.new_store()
+        restore(snapshot,destination,ROOT/'schemas',expected_digest=report['snapshot_sha256'],actor='restore',quiesced=True,store=store)
+        restored=Service(destination,ROOT/'schemas',store=store)
+        recovered=working.workspace(restored,self.transfer['id'],'archive-a',self.sip['id'])
+        expected=self.document()
+        self.assertEqual(recovered['revision'],expected['revision']+1)
+        self.assertEqual(recovered['statistics']['binding']['revision'],recovered['revision'])
+        expected['revision']=recovered['revision']
+        expected['statistics']['binding']['revision']=recovered['revision']
+        self.assertEqual(recovered,expected)
+
+    def test_retained_sample_and_item_reviews_bind_exact_version_without_editing_metadata(self):
+        before=self.document()
+        retained=self.operation('sample-record',sample_mode='absolute',sample_size=2,sample_seed='retained-seed',
+                                sample_name='',sample_reference='')['operation']
+        sample=retained['changes']['sample']
+        self.assertEqual(sample['metadata_sha256'],before['state']['metadata_sha256'])
+        self.assertEqual(sample['input_operation_id'],before['state']['head'])
+        self.assertEqual(self.document()['state']['metadata_sha256'],before['state']['metadata_sha256'])
+        reviews=[dict(node_id=item['node_id'],outcome='checked',comment='Reviewed sampled description') for item in sample['items']]
+        reviewed=self.operation('sample-review',sample_id=retained['id'],reviews=reviews)['operation']
+        self.assertEqual(reviewed['changes']['sample_review']['metadata_sha256'],sample['metadata_sha256'])
+        from app import prepared_inputs
+        doc=self.document()
+        frozen=prepared_inputs.create(self.service,self.transfer['id'],'archive-a','editor',self.sip['id'],
+            dict(request_id=str(uuid.uuid4()),revision=doc['revision'],source_sha256=doc['source_sha256'],
+                 operation_id=doc['state']['head'],reason='Freeze exact sampled and reviewed metadata'))['prepared_input']
+        self.edit()
+        self.assertNotEqual(self.document()['state']['metadata_sha256'],sample['metadata_sha256'])
+        historical=working.workspace(self.service,self.transfer['id'],'archive-a',self.sip['id'],retained['id'])
+        self.assertEqual(historical['state']['head'],self.document()['state']['head'])
+        self.assertEqual(self.document()['history'][0]['changes']['sample'],sample)
+        prepared_inputs.validate_record(self.current(),frozen,self.service.blob,self.service.schemas)
+        working.validate_retained(self.current(),self.service.blob,self.service.schemas)
+        evidence=members(self.service.blob(reviewed['evidence_sha256']))
+        self.assertIn(b'sample-review',evidence['metadata/premis.xml'])
+        self.assertIn(b'retained-seed',evidence['history.json'])
+
+    def test_sampling_rejects_empty_criteria_results_incomplete_and_duplicate_reviews_atomically(self):
+        baseline=self.current()
+        with self.assertRaises(PackageError):
+            self.operation('sample-record',sample_mode='absolute',sample_size=2,sample_seed='seed',sample_name='No matching dossier')
+        self.assertEqual(self.current(),baseline)
+        retained=self.operation('sample-record',sample_mode='absolute',sample_size=2,sample_seed='seed')['operation']
+        items=retained['changes']['sample']['items']
+        reviews=[dict(node_id=item['node_id'],outcome='checked',comment='') for item in items]
+        baseline=self.current()
+        invalid=copy.deepcopy(reviews);invalid[0]['outcome']='issue'
+        duplicate=copy.deepcopy(reviews);duplicate[-1]['node_id']='unknown'
+        for values in ([],invalid,duplicate):
+            with self.subTest(values=values),self.assertRaises(PackageError):
+                self.operation('sample-review',sample_id=retained['id'],reviews=values)
+            self.assertEqual(self.current(),baseline)
+        self.operation('sample-review',sample_id=retained['id'],reviews=reviews)
+        with self.assertRaises(PackageError):
+            self.operation('sample-review',sample_id=retained['id'],reviews=reviews)
+        working.validate_retained(self.current(),self.service.blob,self.service.schemas)
+
     def test_all_eight_profiles_edit_delivery_and_optional_provenance_preserving_other_xml(self):
         for case in json.loads((ROOT/'fixtures/corpus.json').read_text(encoding='utf-8'))['cases']:
             with self.subTest(case=case['file']):
@@ -57,6 +234,10 @@ class WorkingTests(WorkingFixture):
                 self.assertEqual(ET.tostring(metadata,method='c14n'),ET.tostring(before,method='c14n'))
                 self.assertEqual(self.service.blob(self.sip['sha256']),original)
                 self.assertEqual(self.current()['sips'][0],self.sip)
+                statistics=self.document()['statistics']
+                self.assertEqual(statistics['missing_required'],[])
+                self.assertEqual(statistics['broken_references'],[])
+                self.assertEqual(len(statistics['payload_files']),len(self.sip['files']))
                 working.validate_retained(self.current(),self.service.blob,self.service.schemas)
 
     def test_grouped_dates_uncertainty_and_repeated_values_reorder_remove(self):
@@ -182,6 +363,39 @@ class WorkingTests(WorkingFixture):
 
 
 class WorkingApiTests(WorkingFixture):
+    def test_batch_api_has_one_operation_and_preserves_old_request_identity(self):
+        original=main.service;main.service=self.service
+        self.addCleanup(setattr,main,'service',original);self.addCleanup(main.app.dependency_overrides.clear)
+        main.app.dependency_overrides[principal]=lambda:Principal('editor','archive-a',frozenset({'archive-reader','archive-operator'}),'archive-workbench')
+        client=TestClient(main.app);base='/api/transfers/'+self.transfer['id']+'/sips/'+self.sip['id']+'/preparation'
+        doc=self.document();edits=[]
+        for kind,tag in [('ablieferung','ablieferndeStelle'),('provenienz','systemBeschreibung')]:
+            node,field=self.find_field(kind,tag)
+            values=copy.deepcopy(field['values']) or [self.new_row(field)]
+            values[0]['text']='One retained package save'
+            edits.append(dict(node_id=node['id'],field_id=field['id'],before=field['values'],values=values))
+        request=dict(request_id=str(uuid.uuid4()),revision=doc['revision'],source_sha256=doc['source_sha256'],
+                     base_operation_id=doc['state']['head'],kind='edit-batch',reason='Save all proposals',edits=edits)
+        before=self.current()
+        preview=client.post(base+'/edit-preview',json=request)
+        self.assertEqual(preview.status_code,200,preview.text)
+        self.assertEqual(self.current(),before)
+        main.app.dependency_overrides[principal]=lambda:Principal('reader','archive-a',frozenset({'archive-reader'}),'archive-workbench')
+        self.assertEqual(client.post(base+'/edit-preview',json=request).status_code,403)
+        main.app.dependency_overrides[principal]=lambda:Principal('editor','other-archive',frozenset({'archive-operator'}),'archive-workbench')
+        self.assertEqual(client.post(base+'/edit-preview',json=request).status_code,404)
+        main.app.dependency_overrides[principal]=lambda:Principal('editor','archive-a',frozenset({'archive-operator'}),'archive-workbench')
+        invalid=copy.deepcopy(request);invalid['edits'][-1]['values'][0]['text']='invalid\x00'
+        self.assertEqual(client.post(base+'/edit-preview',json=invalid).status_code,422)
+        self.assertEqual(self.current(),before)
+        result=client.post(base+'/commands',json=request)
+        self.assertEqual(result.status_code,200,result.text)
+        self.assertEqual(result.json()['operation']['after_metadata_sha256'],preview.json()['metadata_sha256'])
+        self.assertEqual(len(result.json()['operation']['changes']['edits']),2)
+        self.assertEqual(client.post(base+'/edit-preview',json=request).status_code,409)
+        self.assertTrue(client.post(base+'/commands',json=request).json()['replayed'])
+        self.assertEqual(client.post(base+'/commands',json={**request,'edits':[dict(edits[0],unexpected=True)]}).status_code,422)
+
     def test_dossier_samples_are_current_version_read_only_and_tenant_scoped(self):
         original=main.service;main.service=self.service
         self.addCleanup(setattr,main,'service',original);self.addCleanup(main.app.dependency_overrides.clear)
@@ -204,6 +418,18 @@ class WorkingApiTests(WorkingFixture):
         self.assertEqual(client.get(base+'/sample',params={**query,'revision':document['revision']+1}).status_code,409)
         self.assertEqual(client.get(base+'/sample',params={'mode':'percent','size':'101'}).status_code,422)
         self.assertEqual(client.get(base+'/sample',params={'mode':'absolute','size':'501'}).status_code,422)
+        seeded=client.get(base+'/sample',params={**query,'seed':sample['seed']}).json()
+        self.assertEqual(seeded,sample)
+        request=dict(request_id=str(uuid.uuid4()),revision=document['revision'],source_sha256=document['source_sha256'],
+            base_operation_id=document['state']['head'],kind='sample-record',reason='Retain reproducible review sample',
+            sample_mode='absolute',sample_size=2,sample_seed=sample['seed'])
+        self.assertEqual(client.post(base+'/commands',json=request).status_code,403)
+        user(roles=('archive-reader','archive-operator'))
+        retained=client.post(base+'/commands',json=request)
+        self.assertEqual(retained.status_code,200,retained.text)
+        self.assertEqual(retained.json()['operation']['changes']['sample'],sample)
+        self.assertTrue(client.post(base+'/commands',json=request).json()['replayed'])
+        self.assertEqual(client.get(base+'/sample',params=query).status_code,409)
         user(tenant='other-archive')
         self.assertEqual(client.get(base+'/sample').status_code,404)
 

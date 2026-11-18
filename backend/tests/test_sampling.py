@@ -2,7 +2,7 @@ import random
 import unittest
 
 from app.packages import PackageError
-from app.sampling import draw_sample
+from app.sampling import draw_sample,plan
 
 
 def dossier(ident, reference=''):
@@ -48,6 +48,24 @@ class SamplingTests(unittest.TestCase):
         for mode, size in [('unknown', 1), ('absolute', -1), ('absolute', 501), ('percent', 101)]:
             with self.subTest(mode=mode, size=size), self.assertRaises(PackageError):
                 draw_sample(self.nodes, mode, size)
+
+    def test_seeded_plan_is_reproducible_criteria_bound_and_percentage_is_rounded_up(self):
+        first=plan(self.nodes,'absolute',2,'review-seed')
+        self.assertEqual(first,plan(self.nodes,'absolute',2,'review-seed'))
+        self.assertEqual(len(first['items']),2)
+        filtered=plan(self.nodes,'percent',50,'review-seed','title','REF-A')
+        self.assertEqual(filtered['population_count'],1)
+        self.assertEqual(filtered['items'][0]['node_id'],'a')
+        self.assertNotEqual(first['population_sha256'],filtered['population_sha256'])
+        changed=[dict(node,title='Changed') if node['id']=='a' else node for node in self.nodes]
+        self.assertNotEqual(first['population_sha256'],plan(changed,'absolute',2,'review-seed')['population_sha256'])
+
+    def test_seed_parameters_and_oversized_percentage_are_explicit_errors(self):
+        for seed in ('','x'*201,'\ud800'):
+            with self.subTest(seed=repr(seed)),self.assertRaises(PackageError):
+                plan(self.nodes,'absolute',2,seed)
+        with self.assertRaises(PackageError):
+            plan([dossier(str(index)) for index in range(501)],'percent',100,'seed')
 
 
 if __name__ == '__main__':

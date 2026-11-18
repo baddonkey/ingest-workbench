@@ -9,7 +9,7 @@
   @if(message()){<p role="status" class="context-note">{{message()}}</p>}
   @if(busy()){<p role="status">Opening preserved package…</p>}
   @if(editing() && chosenSip()){
-    <archive-metadata-editor [transferId]="transferId()" [sipId]="chosenSip()" [revision]="revision()" [sourceSha256]="document()?.input_sha256 || ''" [packageName]="document()?.metadata_path?.split('/')?.[0] || chosenSip()" [originalFilename]="document()?.original_filename || ''" [statistics]="document()?.statistics || null" [kostEnabled]="kostEnabled()" [kostStatuses]="kostStatuses()" [kostReport]="kostReport()" [kostPaths]="kostPaths()" (kostEnabledChange)="kostEnabled.set($event)" (kostStatusesChange)="kostStatuses.set($event)" (kostReportChange)="kostReport.set($event)" (kostFileSelected)="openKostFile($event)" (inspectOriginal)="setEditing(false)" (arrange)="arrange.emit()" (arrangePrepared)="arrangePrepared.emit($event)" (close)="closed.emit()" (about)="about.emit()" (sourceDownload)="download($event)" (changed)="changed.emit()" (working)="editorWorking($event)" (pending)="editorChangedCount($event)"/>
+    <archive-metadata-editor [transferId]="transferId()" [sipId]="chosenSip()" [revision]="revision()" [sourceSha256]="document()?.input_sha256 || ''" [packageName]="document()?.metadata_path?.split('/')?.[0] || chosenSip()" [originalFilename]="document()?.original_filename || ''" [statistics]="document()?.statistics || null" [kostEnabled]="kostEnabled()" [kostStatuses]="kostStatuses()" [kostReport]="kostReport()" [kostPaths]="kostPaths()" (kostEnabledChange)="kostEnabled.set($event)" (kostStatusesChange)="kostStatuses.set($event)" (kostReportChange)="kostReport.set($event)" (kostFileSelected)="openKostFile($event)" (previewFile)="previewOriginal($event)" (inspectOriginal)="setEditing(false)" (arrange)="arrange.emit()" (arrangePrepared)="arrangePrepared.emit($event)" (close)="closed.emit()" (about)="about.emit()" (sourceDownload)="download($event)" (changed)="changed.emit()" (working)="editorWorking($event)" (pending)="editorChangedCount($event)"/>
   }
   @if(!editing()){@if(document();as doc){
     <div class="package-summary"><span>eCH {{doc.profile}} · {{doc.kind}}</span><span>{{doc.statistics.payload_files}} payload files · {{doc.statistics.payload_bytes | number}} bytes</span><span>{{doc.statistics.top_level_dossiers}} arrangement units</span></div>
@@ -36,6 +36,7 @@
             <dl class="file-facts"><dt>Submitted path</dt><dd class="mono">{{file.path}}</dd><dt>Size</dt><dd>{{file.size | number}} bytes</dd><dt>SHA-256</dt><dd class="mono">{{file.sha256}}</dd></dl>
             <archive-kost-file-findings [report]="kostReport()" [path]="file.path" [inputSha256]="doc.input_sha256"/>
             <button class="secondary" (click)="download('file')" [disabled]="downloading()">Download original member</button>
+            <button class="secondary" (click)="openMemberPreview(file)">Preview original content</button>
             <h4>Text preview</h4>
             @if(item.preview?.available){<p class="help">Escaped UTF-8 text · @if(item.preview?.truncated){First {{item.preview?.byte_limit | number}} bytes only; preview truncated.}@else{Complete file.}</p><pre class="text-preview">{{item.preview?.text}}</pre>}
             @else{<p class="context-note">{{item.preview?.reason}}</p>}
@@ -92,5 +93,11 @@
     </section>
     <p class="help">Originals remain immutable. Saved metadata drafts are proposals; derived SIP creation and independent review precede candidate authorization.</p>
   }@else if(!busy()){<p>Add a SIP in Packages to open its classification, metadata and contents.</p>}}
+<dialog #contentPreview class="content-preview-dialog" [attr.aria-label]="previewText('previewOriginal')" (cancel)="closePreview($event)">
+  <div class="preview-heading"><h3>{{previewDetail()?.file?.title || previewText('previewOriginal')}}</h3><button (click)="closePreview()">{{previewText('closeHistory')}}</button></div>
+  @if(previewLoading()){<p role="status">{{previewText('previewLoading')}}</p>}
+  @if(previewError()){<p role="alert">{{previewError()}}</p>}
+  @if(previewDetail();as item){@if(item.file;as file){<archive-rich-preview [detail]="item" [contentPath]="base()+'/nodes/'+file.id+'/content'" [language]="previewLanguage()"/><button (click)="downloadPreview()">{{previewText('previewDownload')}}</button>}}
+</dialog>
 <archive-context-menu [state]="contextMenu()" (closed)="contextMenu.set(null)"/>
 </section>

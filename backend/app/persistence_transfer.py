@@ -31,6 +31,9 @@ def blob_bindings(body):
     for operation in body.get('metadata_operations',[]):
         for field in ('before_metadata_sha256','after_metadata_sha256','changes_sha256','evidence_sha256'):
             yield operation[field]
+        if operation['kind']=='content-edit':
+            for key in ('before_archive_sha256','after_archive_sha256'):
+                yield operation['changes']['content'][key]
     for export in body.get('sip_exports', []):
         yield export['sha256']
         yield export['evidence_sha256']

@@ -6,6 +6,7 @@ from pathlib import PurePosixPath
 from urllib.parse import quote
 from lxml import etree as ET
 from .packages import NS, PackageError, members, sha, text, xml
+from . import content_previews
 
 MAX_PREVIEW = 64 * 1024
 MAX_FIELDS = 500
@@ -182,6 +183,7 @@ def node_detail(service, ident, tenant, sip_id, node_id):
     if file_node:
         result['file'] = file_node
         result['preview'] = preview(file_node['path'], files[file_node['path']])
+        result['rich_preview'] = content_previews.project(file_node['path'], files[file_node['path']])
     return result
 
 
