@@ -42,6 +42,9 @@ class Plan(Revision):
     targets:list[Target]=Field(min_length=1,max_length=100)
     reason:str=Field(min_length=1,max_length=2000)
     selected_inputs:list[InputSelection]|None=Field(default=None,min_length=1,max_length=100)
+class CandidatePlan(SelectedInputs):
+    label:str=Field(min_length=1,max_length=200)
+    reason:str=Field(min_length=1,max_length=2000)
 class PreparedReview(Revision):
     request_id:str=Field(pattern='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
     plan_sha256:str=Field(pattern='^[0-9a-f]{64}$')
@@ -430,6 +433,12 @@ async def upload(ident:str,profile:Annotated[str,Form()],revision:Annotated[int,
 def plan(ident:str,data:Plan,u:Principal=Depends(require('archive-operator'))):
     return service.plan(ident,u.tenant,u.sub,data.revision,[t.model_dump() for t in data.targets],data.reason,
                         [s.model_dump() for s in data.selected_inputs] if data.selected_inputs is not None else None)
+
+@app.post('/api/transfers/{ident}/candidate-plan')
+def candidate_plan(ident:str,data:CandidatePlan,u:Principal=Depends(require('archive-operator'))):
+    from .candidate_workflow import plan
+    return plan(service,ident,u.tenant,u.sub,data.revision,data.label,data.reason,
+                [s.model_dump() for s in data.selected_inputs])
 
 @app.get('/api/transfers/{ident}/arrangement')
 def arrangement(ident:str,u:Principal=Depends(require('archive-reader'))):

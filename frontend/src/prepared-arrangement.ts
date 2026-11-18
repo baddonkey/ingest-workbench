@@ -10,10 +10,10 @@ import {arrangementText} from './prepared-arrangement.locale';
 interface Unit {id:string;title:string;files:string[];metadata_xml:string}
 interface Sip {id:string;profile:string;sha256:string;units:Unit[]}
 interface Review {id:string;actor:string;created:string;reason:string;plan_sha256:string;evidence_sha256:string}
-interface PreparedPlan {format:number;sha256:string;reason:string;targets:{label:string;units:{sip_id:string;unit_id:string}[]}[];inputs:{sip_id:string;input_sha256:string}[]}
-interface Transfer {id:string;revision:number;state:string;plan:unknown;sips:Sip[]}
+interface PreparedPlan {format:number;mode?:'single-candidate';sha256:string;reason:string;targets:{label:string;units:{sip_id:string;unit_id:string}[]}[];inputs:{sip_id:string;input_sha256:string}[]}
+interface Transfer {id:string;title:string;revision:number;state:string;plan:unknown;sips:Sip[]}
 interface Binding {sip_id:string;prepared_id:string|null;input_sha256:string;receipt_checks:string[]}
-interface Workspace {input_notes:{sip_id:string;prepared_id:string|null;notes:(PreparationNote & {object_title:string})[]}[];revision:number;state:string;plan:PreparedPlan|null;approval:{review_id?:string}|null;outputs:{id:string;label:string;version:number;sha256:string;profile:string}[];sips:Sip[];selected_inputs:{sip_id:string;prepared_id:string|null}[];bindings:Binding[];current_findings:Binding[];plan_current:boolean;stale_reason:string|null;prepared_review_id:string|null;reviews:Review[];choices:{sip_id:string;source_allowed:boolean;source_sha256:string;frozen:{id:string;operation_id:string;sha256:string;created:string;current:boolean}[]}[]}
+interface Workspace {require_independent_review:boolean;input_notes:{sip_id:string;prepared_id:string|null;notes:(PreparationNote & {object_title:string})[]}[];revision:number;state:string;plan:PreparedPlan|null;approval:{review_id?:string}|null;outputs:{id:string;label:string;version:number;sha256:string;profile:string}[];sips:Sip[];selected_inputs:{sip_id:string;prepared_id:string|null}[];bindings:Binding[];current_findings:Binding[];plan_current:boolean;stale_reason:string|null;prepared_review_id:string|null;reviews:Review[];choices:{sip_id:string;source_allowed:boolean;source_sha256:string;frozen:{id:string;operation_id:string;sha256:string;created:string;current:boolean}[]}[]}
 
 @Component({selector:'archive-prepared-arrangement',standalone:true,imports:[CommonModule,FormsModule],templateUrl:'./prepared-arrangement.html',styleUrl:'./prepared-arrangement.css'})
 export class PreparedArrangement implements OnChanges,OnDestroy {
@@ -24,7 +24,7 @@ export class PreparedArrangement implements OnChanges,OnDestroy {
   private authorizationRetry:{signature:string;request:object}|null=null;
   private retainedTransfer:Transfer|null=null;
   document=signal<Workspace|null>(null);busy=signal(false);loading=signal(false);error=signal('');language=signal<EditorLanguage>('en');
-  selected:Record<string,string>={};assignments:Record<string,string>={};reason='';reviewReason='';authorizationReason='';private touched=false;mappingDirty=signal(false);
+  selected:Record<string,string>={};label='';reason='';reviewReason='';authorizationReason='';mappingDirty=signal(false);
   text(key:string){return arrangementText(key,this.language())||editorText(key,this.language());}
   canEdit(){return this.identity.hasRealmRole('archive-operator');}
   canReview(){return this.identity.hasRealmRole('archive-approver');}
@@ -39,9 +39,13 @@ export class PreparedArrangement implements OnChanges,OnDestroy {
       const doc=await this.api.request<Workspace>(this.base()+'/arrangement');if(generation!==this.generation)return;
       this.retainedTransfer={...this.activeTransfer(),revision:doc.revision,state:doc.state,plan:doc.plan};
       this.document.set(doc);this.selected=Object.fromEntries(doc.selected_inputs.map(s=>[s.sip_id,s.prepared_id||'']));
-      const plan=this.activeTransfer().plan as PreparedPlan|null;this.reason=plan?.reason||'';this.assignments={};this.touched=!!plan;this.mappingDirty.set(false);
-      for(const s of doc.sips)for(const u of s.units)this.assignments[s.id+':'+u.id]=u.title;
-      for(const target of plan?.targets||[])for(const u of target.units)this.assignments[u.sip_id+':'+u.unit_id]=target.label;
+      const plan=this.activeTransfer().plan as PreparedPlan|null;this.reason=plan?.reason||'Create one candidate from all selected SIPs.';
+      this.label=plan?.targets.length===1?plan.targets[0].label:this.transfer().title;
+      this.mappingDirty.set(false);
+      if(!plan)for(const choice of doc.choices){
+        const frozen=choice.frozen.find(f=>f.current);
+        if(frozen)this.selected[choice.sip_id]=frozen.id;
+      }
       this.retry=null;
       this.authorizationRetry=null;
       const selection=this.initialSelection();
@@ -52,6 +56,9 @@ export class PreparedArrangement implements OnChanges,OnDestroy {
           throw new Error('The selected snapshot is no longer current. Reopen Validation and freeze the latest working state.');
         this.loading.set(false);
         await this.choose(selection.sip_id,selection.prepared_id);
+      }else if(!plan && Object.values(this.selected).some(Boolean) && this.validSelection()){
+        this.loading.set(false);
+        await this.choose(doc.choices[0].sip_id,this.selected[doc.choices[0].sip_id]);
       }
     }catch(error){if(generation===this.generation)this.error.set(error instanceof Error?error.message:'Arrangement could not be loaded');}
     finally{if(generation===this.generation)this.loading.set(false);}
@@ -67,16 +74,12 @@ export class PreparedArrangement implements OnChanges,OnDestroy {
       const result=await this.api.request<{revision:number;sips:Sip[];bindings:Binding[]}>(this.base()+'/arrangement/preview',{method:'POST',body:JSON.stringify({revision:this.document()!.revision,selected_inputs:this.selections()})});
       if(generation!==this.generation)return;
       this.document.update(doc=>doc?{...doc,...result}:doc);
-      if(!this.touched)for(const s of result.sips)for(const u of s.units)this.assignments[s.id+':'+u.id]=u.title;
     }catch(error){if(generation===this.generation)this.error.set(error instanceof Error?error.message:'Selection preview failed');}
     finally{this.busy.set(false);this.working.emit(false);}
   }
-  markAssignment(key:string,value:string){this.assignments[key]=value;this.touched=true;this.mappingDirty.set(true);}
   async save(){
-    const doc=this.document();if(!doc||this.busy()||this.loading()||!this.canEdit()||!this.validSelection()||!this.reason.trim())return;
-    const grouped=new Map<string,{sip_id:string;unit_id:string}[]>();
-    for(const s of doc.sips)for(const u of s.units){const label=(this.assignments[s.id+':'+u.id]||'').trim();if(!label){this.error.set(this.text('assignAll'));return;}const items=grouped.get(label)||[];items.push({sip_id:s.id,unit_id:u.id});grouped.set(label,items);}
-    await this.mutate('/plan',{revision:doc.revision,targets:[...grouped].map(([label,units])=>({label,units})),reason:this.reason,selected_inputs:this.selections()});
+    const doc=this.document();if(!doc||this.busy()||this.loading()||!this.canEdit()||!this.validSelection()||!this.reason.trim()||!this.label.trim())return;
+    await this.mutate('/candidate-plan',{revision:doc.revision,label:this.label,reason:this.reason,selected_inputs:this.selections()});
   }
   async review(){
     const doc=this.document(),plan=this.plan();if(!doc||!plan||this.busy()||this.loading()||this.mappingDirty()||!doc.plan_current||doc.prepared_review_id||!this.reviewReason.trim()||!this.canReview())return;
@@ -91,7 +94,8 @@ export class PreparedArrangement implements OnChanges,OnDestroy {
     if(this.authorizationRetry?.signature!==signature)this.authorizationRetry={signature,request:{request_id:crypto.randomUUID(),revision:doc.revision,review_id:doc.prepared_review_id,plan_sha256:plan.sha256,reason:this.authorizationReason}};
     await this.mutate('/prepared-authorizations',this.authorizationRetry.request);
   }
-  async build(){const doc=this.document();if(!doc||this.busy()||this.loading()||this.mappingDirty()||!this.canEdit()||!doc.plan_current||doc.state!=='APPROVED'||!doc.approval?.review_id)return;await this.mutate('/build',{revision:doc.revision});}
+  canBuild(){const doc=this.document();return !!doc && !this.busy() && !this.loading() && !this.mappingDirty() && this.canEdit() && !!this.plan() && doc.plan_current && (doc.require_independent_review || this.plan()?.mode!=='single-candidate'?doc.state==='APPROVED'&&!!doc.approval?.review_id:['PLANNED','APPROVED'].includes(doc.state));}
+  async build(){const doc=this.document();if(!doc||!this.canBuild())return;await this.mutate('/build',{revision:doc.revision});}
   async downloadCandidate(id:string){try{await this.api.download(this.base()+'/outputs/'+id,'AIP-candidate-'+id+'.zip');}catch(error){this.error.set(error instanceof Error?error.message:'Download failed');}}
   private async mutate(path:string,request:object){
     const generation=this.generation;this.busy.set(true);this.working.emit(true);this.error.set('');

@@ -34,7 +34,7 @@ async function login(page: Page, user: string, secret: string) {
   await page.getByRole('textbox', { name: 'Username or email' }).fill(user);
   await page.getByRole('textbox', { name: 'Password', exact: true }).fill(secret);
   await page.getByRole('button', { name: 'Sign In', exact: true }).click();
-  await expect(page.locator('.identity')).toHaveText(user);
+  await expect(page.locator('.sidebar-user')).toHaveText(user);
   await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
 }
 
@@ -90,7 +90,7 @@ test.afterAll(async () => {
 
 test('shipped realm imports the administrator-controlled tenant attribute', async () => {
   const realm = prefix + '-realm';
-  const fixture = JSON.parse(readFileSync(resolve('..', 'infra', 'realm.json'), 'utf8'));
+  const fixture = JSON.parse(readFileSync(resolve('..', 'config', 'realm.json'), 'utf8'));
   fixture.realm = realm;
   delete fixture.users;
   const headers = { Authorization: 'Bearer ' + adminToken, 'Content-Type': 'application/json' };
@@ -152,12 +152,14 @@ test('roles, independent review, candidate download and browser tenant isolation
   await page.locator('input[type=file]').first().setInputFiles(resolve('..', 'fixtures', 'reference-1.3.zip'));
   await page.getByRole('button', { name: 'Inspect & add SIP' }).click();
   await expect(page.getByText('Internal checks passed', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'm:n mapping', exact: true }).click();
-  await page.getByRole('textbox', { name: 'Reason for restructuring' }).fill('Local automated qualification: retain source dossier descendants.');
-  await page.getByRole('button', { name: 'Save mapping for review' }).click();
-  await expect(page.getByRole('button', { name: 'Approve as reviewer' })).toBeEnabled();
-  await page.getByRole('button', { name: 'Approve as reviewer' }).click();
-  await expect(page.getByRole('alert')).toContainText('archive-approver');
+  const uploaded = (await apiCall('/api/transfers/' + transfer.id)).body;
+  const sourceTargets = uploaded.sips[0].units.map((unit: {id:string}, index:number) => ({
+    label: 'Legacy target ' + index, units: [{sip_id: uploaded.sips[0].id, unit_id: unit.id}]
+  }));
+  const legacyPlan = await apiCall('/api/transfers/' + transfer.id + '/plan', 'POST',
+    {revision:uploaded.revision,targets:sourceTargets,reason:'Verify historical mapping authorization'});
+  expect(legacyPlan.status).toBe(200);
+  expect((await apiCall('/api/transfers/' + transfer.id + '/approve', 'POST', {revision:legacyPlan.body.revision})).status).toBe(403);
   await logout(page);
 
   // A principal with both roles still cannot approve its own plan.
@@ -178,18 +180,17 @@ test('roles, independent review, candidate download and browser tenant isolation
   await logout(page);
 
   await login(page, 'reviewer', 'reviewer-local-only');
-  await page.locator('button.transfer').filter({ hasText: title }).click();
-  await page.getByRole('button', { name: 'm:n mapping', exact: true }).click();
-  await page.getByRole('button', { name: 'Approve as reviewer' }).click();
-  await expect(page.locator('.detail .badge').first()).toHaveText('APPROVED');
-  await page.getByRole('button', { name: 'Build candidates', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('archive-operator');
+  const approved = await apiCall('/api/transfers/' + transfer.id + '/approve', 'POST', {revision:planned.body.revision});
+  expect(approved.status).toBe(200);
+  expect((await apiCall('/api/transfers/' + transfer.id + '/build', 'POST', {revision:approved.body.revision})).status).toBe(403);
   await logout(page);
 
   await login(page, 'operator', 'operator-local-only');
+  const built = await apiCall('/api/transfers/' + transfer.id + '/build', 'POST', {revision:approved.body.revision});
+  expect(built.status).toBe(200);
+  await page.getByRole('button', { name: 'Refresh', exact: true }).click();
   await page.locator('button.transfer').filter({ hasText: title }).click();
-  await page.getByRole('button', { name: 'm:n mapping', exact: true }).click();
-  await page.getByRole('button', { name: 'Build candidates', exact: true }).click();
+  await page.getByRole('button', { name: 'AIP candidates', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Download candidate', exact: true })).toHaveCount(3);
   const digest = await page.locator('.detail article.sip p.mono').first().innerText();
   const download = page.waitForEvent('download');

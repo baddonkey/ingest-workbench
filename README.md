@@ -1,6 +1,6 @@
 # Ingest Workbench
 
-Python/FastAPI and Angular reference workflow for eCH-0160 SIP intake, preparation, m:n arrangement and AIP candidates. This is not a production archival acceptance system.
+Python/FastAPI and Angular reference workflow for eCH-0160 SIP intake, preparation, and one AIP candidate per transfer (one or more SIPs). This is not a production archival acceptance system.
 
 ![Ingest Packager showing the classification navigator, expanded dossiers and metadata editor](docs/images/workspace.png)
 
@@ -8,6 +8,11 @@ Python/FastAPI and Angular reference workflow for eCH-0160 SIP intake, preparati
 
 Optional SIP-Validation relies on the separately operated
 [sip-validator companion service](https://github.com/baddonkey/sip-validator).
+
+Independent archivist review is off by default. Set
+`AIP_REQUIRE_INDEPENDENT_REVIEW=true` to require it before candidate creation.
+See [candidate creation and AIS Turbo bridge handoff](docs/user-manual.md#arrange-review-and-build)
+for the exact download workflow and external-acceptance boundary.
 
 This is a private, non-commercial educational project exploring ingest tools and the potential of agentic programming.
 

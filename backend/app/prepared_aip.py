@@ -68,6 +68,9 @@ def authorize(service, ident, tenant, actor, request):
 
 
 def check_authorization(body, approval, schemas, blob=None, profile_version=PROFILE_VERSION):
+    if profile_version == '5.0.0':
+        from .candidate_workflow import check_authorization as check_operator
+        return check_operator(body, approval, schemas, blob)
     CandidateAuthorization.model_validate(approval)
     plan = body['plan']
     review = next((r for r in body['prepared_reviews'] if r['id'] == approval['review_id']), None)
@@ -111,6 +114,7 @@ def validate_snapshot(snapshot, blob, schemas):
 
 def evidence_payload(service, body):
     snapshot = {'version': 1, 'body': {k: copy.deepcopy(body[k]) for k in FIELDS if k in body}}
+    snapshot['body'].setdefault('prepared_review_id', None)
     files = {SNAPSHOT: canonical(snapshot)}
     from .evidence_codec import Encoder
     encoder=Encoder(PREFIX)
@@ -144,6 +148,16 @@ def validate_retained(body, blob, schemas):
     authorizations={}
     for entry in body['events']:
         approval=entry['detail']
+        if entry['type']=='authorization' and approval.get('review_required') is False:
+            if approval['id'] in authorizations or approval['plan_sha256'] not in plans:
+                raise PackageError('Duplicate or missing operator candidate authorization')
+            historic={**body,'plan':plans[approval['plan_sha256']],
+                      'aip_context':approval['context_snapshot'],'context_author':approval['context_author'],
+                      'representation_resources':approval['resource_snapshots']}
+            check_authorization(historic,approval,schemas,blob,'5.0.0')
+            if entry['actor']!=approval['approver']:raise PackageError('Authorization audit actor mismatch')
+            authorizations[approval['id']]=approval
+            continue
         if entry['type']!='authorization' or 'review_id' not in approval:continue
         if approval['id'] in authorizations:raise PackageError('Duplicate prepared candidate authorization')
         review=next((r for r in body.get('prepared_reviews',[]) if r['id']==approval['review_id']),None)
@@ -155,11 +169,11 @@ def validate_retained(body, blob, schemas):
         if entry['actor']!=approval['approver']:raise PackageError('Authorization audit actor mismatch')
         authorizations[approval['id']]=approval
     current=body.get('approval',{})
-    if 'review_id' in current:
+    if 'review_id' in current or current.get('review_required') is False:
         if authorizations.get(current['id'])!=current:raise PackageError('Active authorization is not retained exactly')
-        check_authorization(body,current,schemas,blob)
+        check_authorization(body,current,schemas,blob,'5.0.0' if current.get('review_required') is False else PROFILE_VERSION)
     for output in body.get('outputs',[]):
-        if output.get('profile') != PROFILE_ID:continue
+        if output.get('profile') not in (PROFILE_ID,'urn:ch-archive:aip-profile:5.0.0'):continue
         from .aip_validation import validate_package
         data=blob(output['sha256'])
         report=validate_package(data,schemas,expected_sha256=output['sha256'],source_resolver=blob)

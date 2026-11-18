@@ -103,8 +103,8 @@ test('Package Turbo workspace patterns integrate with authenticated preserved SI
   await handler.locator('.search-hit').filter({ hasText: 'logical' }).first().click();
   await expect(handler.locator('.context-note').first()).toContainText('IdD-1');
   await page.screenshot({ path: resolve('..', 'var', 'browser', 'package-handler.png'), fullPage: true });
-  await handler.getByRole('button', { name: 'Arrange dossiers', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Define archival boundaries', exact: true })).toBeVisible();
+  await handler.getByRole('button', { name: 'Create AIP candidate', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Create AIP candidate', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Ingest Packager', exact: true }).click();
   const editor = page.getByRole('region', { name: 'Versioned metadata editor', exact: true });
   await editor.locator('.reference-toolbar').getByRole('button', { name: 'SIP-Validation', exact: true }).click();

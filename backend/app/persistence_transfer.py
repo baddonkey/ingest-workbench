@@ -13,12 +13,15 @@ from .store import Conflict
 def require_supported(body):
     if body.get('delivery_operations') or body.get('crosswalk_exports'):
         raise Conflict('Retired integration records are not supported; retain the source unchanged')
-    if any(output.get('profile') not in ('urn:ch-archive:aip-profile:3.0.0','urn:ch-archive:aip-profile:4.0.0')
+    if any(output.get('profile') not in ('urn:ch-archive:aip-profile:3.0.0','urn:ch-archive:aip-profile:4.0.0','urn:ch-archive:aip-profile:5.0.0')
            for output in body.get('outputs',[])):
         raise Conflict('Retired candidate profile is not supported; retain the source unchanged')
 
 
 def blob_bindings(body):
+    for entry in body.get('events', []):
+        if entry['type']=='authorization' and entry['detail'].get('review_required') is False:
+            for resource in entry['detail']['resource_snapshots']:yield resource['sha256']
     for plan in body.get('prepared_plans', []):yield plan['descriptor_sha256']
     for review in body.get('prepared_reviews', []):
         yield review['evidence_sha256']

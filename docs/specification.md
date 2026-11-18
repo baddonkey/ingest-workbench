@@ -4,7 +4,7 @@ This specification defines the agreed product contract and local operating conve
 
 ## Purpose and boundary
 
-Ingest Workbench is a Python/FastAPI and Angular reference application for receiving **m SIPs and arranging them into n AIP candidates**. It supports eCH-0160 1.0, 1.1, 1.2.0, and 1.3.0, Keycloak OIDC, METS/PREMIS evidence, SQLite by default and optional PostgreSQL.
+Ingest Workbench is a Python/FastAPI and Angular reference application for receiving **one or more SIPs and combining them into one AIP candidate per transfer**. It supports eCH-0160 1.0, 1.1, 1.2.0, and 1.3.0, Keycloak OIDC, METS/PREMIS evidence, SQLite by default and optional PostgreSQL.
 
 This is not a certified preservation system. Receipt validation, preparation review, candidate readiness, institutional approval and archival acceptance are distinct states. Creating a candidate does not imply archival acceptance. 🔴 **Not implemented:** production archival finalization remains disabled.
 
@@ -38,7 +38,7 @@ The eCH-0160 schemas are intentionally separate from METS/PREMIS schemas. The so
 
 The declared profile and `schemaVersion` must agree. Never silently upgrade a submission to a newer schema. Mixed-profile transfers are allowed; each SIP retains its own profile, source bytes, validation and evidence. ZIP/XML parsing is bounded, rejects unsafe paths, collisions, links and encrypted entries, disables XML entities/network access, and uses pinned local schemas.
 
-Mapping supports 1:1, 1:n, m:1 and m:n. The current smallest selectable unit is a top-level dossier; descendants, payload references and ordering stay together. Every accepted unit is assigned exactly once. Shared files or relationships crossing target boundaries and unsupported layouts are rejected. 🔴 **Not implemented:** exclusions and finer-grained splitting require explicit policy first. Source identifiers are qualified by SIP identity. Identical bytes do not merge archival identities.
+The current UI supports 1:1 and m:1: all SIPs in a transfer produce one candidate, with every top-level dossier included exactly once. Descendants, payload references and ordering stay together. The underlying m:n plan API and historical candidates remain supported for compatibility; the UI no longer asks users to assign dossiers to separate targets. Unsupported layouts are rejected. 🔴 **Not implemented:** exclusions and finer-grained splitting require explicit policy first. Source identifiers are qualified by SIP identity. Identical bytes do not merge archival identities.
 
 ## Lifecycle and gates
 
@@ -47,9 +47,9 @@ The Transfers overview queries tenant-scoped pages through `GET /api/transfer-pa
 1. Receive and retain the original SIP byte-for-byte; record digest, profile and receipt findings.
 2. Inspect and prepare a working version. Applied edits, notes and structure changes are attributable and retained; source bytes do not change.
 3. Freeze exact selected bytes and evidence. Any later edit creates a successor and invalidates current downstream review/authorization pointers without deleting historical outputs.
-4. Build a complete m:n plan against the selected versions and preserve target-boundary and relation-closure checks.
-5. Obtain independent review from a different authorized subject. Review binds exact inputs, plan, context and documentation digests.
-6. Permit candidate creation only through the explicit applicable authorization. Candidate creation is not archival acceptance.
+4. Open **Create AIP candidate**, select the original or current frozen input per SIP, and save one target containing every dossier. Applied preparation cannot be bypassed by selecting the original.
+5. Independent review defaults to off (`AIP_REQUIRE_INDEPENDENT_REVIEW=false`). When enabled, a different authorized subject must review exact inputs, plan, context and documentation digests and explicitly authorize the candidate.
+6. With review off, an operator builds the candidate directly from the saved plan. A retained operator authorization explicitly records `review_required=false`; it does not fabricate a review or imply institutional approval. With review on, build requires the existing independent review and authorization. Candidate creation is not archival acceptance.
 
 The packager's inline **Validation** view presents working-state prerequisites,
 **Freeze & validate**, the latest frozen input's identity and internal checks,
@@ -62,8 +62,9 @@ snapshot. The reason is collected beside the action. Named manual checkpoints
 remain in edit history. External findings are inspected in the existing
 SIP-Validation panel with the exact frozen artifact selected. Missing or failed
 external results are not passes and remain advisory rather than a new gate.
-The current snapshot can be passed explicitly into the m:n arrangement preview;
-the mapping must still be saved, reviewed and authorized separately. Subsequent
+The current snapshot can be passed explicitly into **Create AIP candidate**;
+the candidate inputs must still be saved, and independently reviewed and
+authorized only when configured. Subsequent
 proposals disable handoff; applied edits or checkpoints require a successor
 freeze. Earlier snapshots retain results and downloads in collapsed history.
 
@@ -88,7 +89,7 @@ The embedded Package Turbo-inspired workspace is part of the existing transfer l
 | PH-09 | Reproducible criteria-based or random sampling bound to the exact population/version, parameters, selections and review evidence. |
 | PH-10 | Bulk operations preview every affected object, validate the proposal and retain per-object attributable effects under a shared operation/reason. Reviewed scalar metadata edits are available. 🔴 **Not implemented:** bulk hierarchy and payload operations. |
 | PH-11 | Permit safe preparation/repair of incomplete or invalid SIPs while preserving exact originals; block progression until required checks pass. 🔴 **Not implemented:** guided repair of invalid or incomplete SIPs. |
-| PH-12 | Freeze exact versions for review; bind validation, m:n plan, independent review and candidate generation to those versions. Later edits require successor review. |
+| PH-12 | Bind candidate inputs, validation and generation to exact received or frozen versions. When independent review is configured, bind review and authorization to those versions; later edits require renewed review. |
 | PH-13 | Export version-specific eCH SIP and preservation evidence linked by digest, including METS/PREMIS and authorized preparation history. |
 | PH-14 | Provide version-bound counts, sizes, format assessments, completeness, broken-reference and validation statistics with object drill-down. |
 | PH-15 | Safe, version-bound previews for supported text, image, PDF and audiovisual formats; generated derivatives never replace originals. |
@@ -236,7 +237,7 @@ Use schema-valid METS/PREMIS objects, events, agents, relationships and stable i
 Two versioned candidate contracts are retained under `profiles/ch-aip/`:
 
 - Profile 3.0.0 is the current preparation-only source candidate contract.
-- Profile 4.0.0 is the current preparation-only selected-input candidate contract.
+- Profile 4.0.0 is the independently reviewed selected-input candidate contract. Profile 5.0.0 records a single-candidate operator authorization without asserting an independent review.
 
 Candidates retain stable logical identity, immutable numbered versions, predecessor digest, source-qualified hierarchy, selected payload, manifests, METS/PREMIS, workflow evidence and explicit preservation context. The database-free verifier checks ZIP safety, fixity, profile schemas, XML, graph closure, lineage and review bindings. Prepared-input profiles embed a shared preparation dossier in each target and are not redacted distribution packages. Structural validity, preservation readiness, institutional approval and archival acceptance are separate. 🔴 **Not qualified:** the shipped institutional policy remains unapproved.
 
@@ -244,7 +245,7 @@ Candidate profiles 1.0.0 and 2.0.0 and recovery snapshots in the previous format
 
 ## Identity, security and persistence
 
-Angular is a public Keycloak client using Authorization Code + PKCE S256; tokens remain in adapter memory. The API validates JWT signature, issuer, audience, expiry, token type and allowed client. Authorization uses verified subject, archive scope, roles and object/tenant checks; never trust browser-supplied actor or tenant headers. Two-person review is enforced server-side.
+Angular is a public Keycloak client using Authorization Code + PKCE S256; tokens remain in adapter memory. The API validates JWT signature, issuer, audience, expiry, token type and allowed client. Authorization uses verified subject, archive scope, roles and object/tenant checks; never trust browser-supplied actor or tenant headers. Two-person review, when enabled, is enforced server-side.
 
 Treat uploads as hostile. Keep ZIP limits, XML entity/network protections, schema pinning and strict boundary validation. 🔴 **Not implemented by the local reference stack:** parser isolation, malware quarantine, quotas and resumable uploads. 🔴 **Not qualified:** production egress restrictions, TLS, secrets, Keycloak/MFA, least privilege, monitoring and independent audit controls.
 
@@ -260,7 +261,7 @@ KOST-Val is a separately operated HTTP service, not a CLI subprocess inside the 
 
 The original multipart upload filename is retained on the SIP and in its receipt event, and sent unchanged to KOST on every first run and re-run. Frozen inputs use that same source filename. Preserve its spelling, case and extension; do not generate a name from internal ZIP paths or run identifiers, and do not rewrite a nonconforming name into a conforming one. Path/control characters are rejected rather than silently sanitized. Older uploads that predate filename retention remain readable, but new KOST submissions stop with a service error explaining that the original filename is unavailable; upload those bytes into a new transfer with the original filename. Previously retained validation reports remain historical evidence and are not rewritten.
 
-Ingest Packager exposes KOST status in both preparation and original-inspection modes. Operators can select a received or frozen input, inspect module/message findings, download retained XML, and re-run validation. Readers can inspect results and reports. The panel polls lightweight local endpoints, preserving unsaved metadata, focus and transfer revisions. Frozen-version actions select that version's result. Queued/submitting/running, valid, invalid, service error and submission uncertainty remain distinct. All KOST results are advisory: receipt checks, independent review, candidate readiness, institutional approval and archival acceptance are unchanged.
+Ingest Packager exposes KOST status in both preparation and original-inspection modes. Operators can select a received or frozen input, inspect module/message findings, download retained XML, and re-run validation. Readers can inspect results and reports. The panel polls lightweight local endpoints, preserving unsaved metadata, focus and transfer revisions. Frozen-version actions select that version's result. Queued/submitting/running, valid, invalid, service error and submission uncertainty remain distinct. All KOST results are advisory: receipt checks, any configured independent review, candidate readiness, institutional approval and archival acceptance are unchanged.
 
 The authenticated SIP-scoped `kost-validations` API supplies artifact summaries, operator POST submission, paginated `runs`, per-run status, and retained `runs/{id}/report` attachments. It never exposes service credentials or redirects report downloads to the external service. XML and response sizes are bounded; findings are escaped text. Reports and raw job responses are content-addressed locally; journal records and transition events are retained in the workflow database and included in application recovery. Aggregate-only import/export refuses datasets with KOST history; use full recovery capsules instead. Restore expires leases and holds interrupted uploads as uncertain without contacting KOST.
 

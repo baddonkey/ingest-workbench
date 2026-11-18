@@ -3,13 +3,13 @@
   <div class="pane-tabs"><button [class.active]="editing()" (click)="setEditing(true)"><img src="/package-turbo/file-text.svg" width="16" height="16" alt=""> Edit working metadata</button><button [class.active]="!editing()" (click)="setEditing(false)"><img src="/package-turbo/folder-open.svg" width="16" height="16" alt=""> Inspect original</button></div>
   <div class="handler-toolbar">
     <label>Submission<select [value]="chosenSip()" (change)="switchSip($event)" [disabled]="busy() || saving() || !sips().length">@for(s of sips();track s.id){<option [value]="s.id">eCH {{s.profile}} · {{s.id.slice(0,8)}}</option>}</select></label>
-    <div class="actions"><button class="secondary" (click)="reload()" [disabled]="busy() || saving() || !chosenSip()">Reload package</button><button class="secondary" (click)="download('original')" [disabled]="!document() || downloading()">Download original SIP</button><button class="secondary" (click)="download('metadata')" [disabled]="!document() || downloading()">Download source metadata</button><button class="secondary" (click)="arrange.emit()" [disabled]="!document() || saving()">Arrange dossiers</button></div>
+    <div class="actions"><button class="secondary" (click)="reload()" [disabled]="busy() || saving() || !chosenSip()">Reload package</button><button class="secondary" (click)="download('original')" [disabled]="!document() || downloading()">Download original SIP</button><button class="secondary" (click)="download('metadata')" [disabled]="!document() || downloading()">Download source metadata</button><button class="secondary" (click)="arrange.emit()" [disabled]="!document() || saving()">Create AIP candidate</button></div>
   </div>
   @if(error()){<p role="alert" class="error">{{error()}}</p>}
   @if(message()){<p role="status" class="context-note">{{message()}}</p>}
   @if(busy()){<p role="status">Opening preserved package…</p>}
   @if(editing() && chosenSip()){
-    <archive-metadata-editor [transferId]="transferId()" [sipId]="chosenSip()" [revision]="revision()" [sourceSha256]="document()?.input_sha256 || ''" [packageName]="document()?.metadata_path?.split('/')?.[0] || chosenSip()" [originalFilename]="document()?.original_filename || ''" [statistics]="document()?.statistics || null" [kostEnabled]="kostEnabled()" [kostStatuses]="kostStatuses()" [kostReport]="kostReport()" [kostPaths]="kostPaths()" (kostEnabledChange)="kostEnabled.set($event)" (kostStatusesChange)="kostStatuses.set($event)" (kostReportChange)="kostReport.set($event)" (kostFileSelected)="openKostFile($event)" (previewFile)="previewOriginal($event)" (inspectOriginal)="setEditing(false)" (arrange)="arrange.emit()" (arrangePrepared)="arrangePrepared.emit($event)" (close)="closed.emit()" (about)="about.emit()" (sourceDownload)="download($event)" (changed)="changed.emit()" (working)="editorWorking($event)" (pending)="editorChangedCount($event)"/>
+    <archive-metadata-editor [transferId]="transferId()" [sipId]="chosenSip()" [revision]="revision()" [handoffBusy]="handoffBusy()" [sourceSha256]="document()?.input_sha256 || ''" [packageName]="document()?.metadata_path?.split('/')?.[0] || chosenSip()" [originalFilename]="document()?.original_filename || ''" [statistics]="document()?.statistics || null" [kostEnabled]="kostEnabled()" [kostStatuses]="kostStatuses()" [kostReport]="kostReport()" [kostPaths]="kostPaths()" (kostEnabledChange)="kostEnabled.set($event)" (kostStatusesChange)="kostStatuses.set($event)" (kostReportChange)="kostReport.set($event)" (kostFileSelected)="openKostFile($event)" (previewFile)="previewOriginal($event)" (inspectOriginal)="setEditing(false)" (arrange)="arrange.emit()" (arrangePrepared)="arrangePrepared.emit($event)" (close)="closed.emit()" (about)="about.emit()" (sourceDownload)="download($event)" (changed)="changed.emit()" (working)="editorWorking($event)" (pending)="editorChangedCount($event)"/>
   }
   @if(!editing()){@if(document();as doc){
     <div class="package-summary"><span>eCH {{doc.profile}} · {{doc.kind}}</span><span>{{doc.statistics.payload_files}} payload files · {{doc.statistics.payload_bytes | number}} bytes</span><span>{{doc.statistics.top_level_dossiers}} arrangement units</span></div>
@@ -31,7 +31,7 @@
         @if(detailBusy()){<p role="status">Loading selected object…</p>}
         @if(detail();as item){
           <div class="object-heading"><span class="eyebrow">{{item.node.kind}}</span><h3>{{item.node.title}}</h3><span class="mono">{{item.node.source_id || item.node.id}}</span></div>
-          @if(item.node.unit_id){<p class="context-note">Arrangement unit: {{item.node.unit_id}}. Its descendants stay together in the m:n plan.</p>}
+          @if(item.node.unit_id){<p class="context-note">Candidate unit: {{item.node.unit_id}}. Its descendants stay together in the AIP candidate.</p>}
           @if(item.file;as file){
             <dl class="file-facts"><dt>Submitted path</dt><dd class="mono">{{file.path}}</dd><dt>Size</dt><dd>{{file.size | number}} bytes</dd><dt>SHA-256</dt><dd class="mono">{{file.sha256}}</dd></dl>
             <archive-kost-file-findings [report]="kostReport()" [path]="file.path" [inputSha256]="doc.input_sha256"/>
@@ -91,7 +91,7 @@
         @for(event of events().slice(-12).reverse();track event.id){<article class="handler-event"><b>{{event.type}}</b><span>{{event.outcome}}</span><small>{{event.time | date:'medium'}} · {{event.actor}}</small></article>}
       }
     </section>
-    <p class="help">Originals remain immutable. Saved metadata drafts are proposals; derived SIP creation and independent review precede candidate authorization.</p>
+    <p class="help">Originals remain immutable. Saved metadata drafts are proposals and must be frozen before candidate generation. Independent review is required only when configured.</p>
   }@else if(!busy()){<p>Add a SIP in Packages to open its classification, metadata and contents.</p>}}
 <dialog #contentPreview class="content-preview-dialog" [attr.aria-label]="previewText('previewOriginal')" (cancel)="closePreview($event)">
   <div class="preview-heading"><h3>{{previewDetail()?.file?.title || previewText('previewOriginal')}}</h3><button (click)="closePreview()">{{previewText('closeHistory')}}</button></div>

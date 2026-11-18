@@ -1,0 +1,402 @@
+{
+  "$defs": {
+    "OperatorAuthorization": {
+      "additionalProperties": false,
+      "properties": {
+        "profile_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Profile Sha256",
+          "type": "string"
+        },
+        "approver": {
+          "title": "Approver",
+          "type": "string"
+        },
+        "author": {
+          "title": "Author",
+          "type": "string"
+        },
+        "context_author": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Context Author"
+        },
+        "plan_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Plan Sha256",
+          "type": "string"
+        },
+        "context_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Context Sha256",
+          "type": "string"
+        },
+        "target_contexts": {
+          "additionalProperties": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "title": "Target Contexts",
+          "type": "object"
+        },
+        "target_resources": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "title": "Target Resources",
+          "type": "object"
+        },
+        "time": {
+          "title": "Time",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "inputs_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Inputs Sha256",
+          "type": "string"
+        },
+        "review_required": {
+          "const": false,
+          "title": "Review Required",
+          "type": "boolean"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "production_acceptance": {
+          "const": false,
+          "title": "Production Acceptance",
+          "type": "boolean"
+        },
+        "context_snapshot": {
+          "additionalProperties": true,
+          "title": "Context Snapshot",
+          "type": "object"
+        },
+        "resource_snapshots": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Resource Snapshots",
+          "type": "array"
+        }
+      },
+      "required": [
+        "profile_sha256",
+        "approver",
+        "author",
+        "context_author",
+        "plan_sha256",
+        "context_sha256",
+        "target_contexts",
+        "target_resources",
+        "time",
+        "id",
+        "inputs_sha256",
+        "review_required",
+        "reason",
+        "production_acceptance",
+        "context_snapshot",
+        "resource_snapshots"
+      ],
+      "title": "OperatorAuthorization",
+      "type": "object"
+    },
+    "Previous": {
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "version_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Version Id",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "version_id",
+        "sha256"
+      ],
+      "title": "Previous",
+      "type": "object"
+    },
+    "Resource": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "original_name": {
+          "title": "Original Name",
+          "type": "string"
+        },
+        "media_type": {
+          "title": "Media Type",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size": {
+          "minimum": 0,
+          "title": "Size",
+          "type": "integer"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "original_name",
+        "media_type",
+        "sha256",
+        "size",
+        "path"
+      ],
+      "title": "Resource",
+      "type": "object"
+    },
+    "SelectedSource": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "profile": {
+          "enum": [
+            "1.0",
+            "1.1",
+            "1.2.0",
+            "1.3.0"
+          ],
+          "title": "Profile",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size": {
+          "minimum": 1,
+          "title": "Size",
+          "type": "integer"
+        },
+        "original_metadata_path": {
+          "title": "Original Metadata Path",
+          "type": "string"
+        },
+        "metadata_path": {
+          "title": "Metadata Path",
+          "type": "string"
+        },
+        "metadata_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Metadata Sha256",
+          "type": "string"
+        },
+        "unit_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Unit Ids",
+          "type": "array"
+        },
+        "source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        },
+        "source_size": {
+          "title": "Source Size",
+          "type": "integer"
+        },
+        "prepared_id": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Prepared Id"
+        }
+      },
+      "required": [
+        "id",
+        "profile",
+        "sha256",
+        "size",
+        "original_metadata_path",
+        "metadata_path",
+        "metadata_sha256",
+        "unit_ids",
+        "source_sha256",
+        "source_size",
+        "prepared_id"
+      ],
+      "title": "SelectedSource",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "profile_id": {
+      "const": "urn:ch-archive:aip-profile:5.0.0",
+      "title": "Profile Id",
+      "type": "string"
+    },
+    "profile_version": {
+      "const": "5.0.0",
+      "title": "Profile Version",
+      "type": "string"
+    },
+    "profile_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Profile Sha256",
+      "type": "string"
+    },
+    "status": {
+      "const": "CANDIDATE",
+      "title": "Status",
+      "type": "string"
+    },
+    "archive_scope": {
+      "title": "Archive Scope",
+      "type": "string"
+    },
+    "aip_id": {
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "title": "Aip Id",
+      "type": "string"
+    },
+    "version": {
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "version_id": {
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "title": "Version Id",
+      "type": "string"
+    },
+    "representation_id": {
+      "title": "Representation Id",
+      "type": "string"
+    },
+    "previous_version": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Previous"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "label": {
+      "title": "Label",
+      "type": "string"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/SelectedSource"
+      },
+      "title": "Sources",
+      "type": "array"
+    },
+    "resources": {
+      "items": {
+        "$ref": "#/$defs/Resource"
+      },
+      "title": "Resources",
+      "type": "array"
+    },
+    "plan_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Plan Sha256",
+      "type": "string"
+    },
+    "context_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Context Sha256",
+      "type": "string"
+    },
+    "approval": {
+      "$ref": "#/$defs/OperatorAuthorization"
+    },
+    "preparation_snapshot_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Preparation Snapshot Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "profile_id",
+    "profile_version",
+    "profile_sha256",
+    "status",
+    "archive_scope",
+    "aip_id",
+    "version",
+    "version_id",
+    "representation_id",
+    "previous_version",
+    "label",
+    "created_at",
+    "sources",
+    "resources",
+    "plan_sha256",
+    "context_sha256",
+    "approval",
+    "preparation_snapshot_sha256"
+  ],
+  "title": "OperatorDescriptor",
+  "type": "object"
+}

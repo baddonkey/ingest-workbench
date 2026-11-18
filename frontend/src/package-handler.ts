@@ -85,6 +85,7 @@ export class PackageHandler implements OnChanges, OnDestroy {
   setEditing(value:boolean){if(this.discardPending()){this.editing.set(value);}}
   readonly transferId = input.required<string>();
   readonly revision = input.required<number>();
+  readonly handoffBusy = input(false);
   readonly sips = input.required<HandlerSip[]>();
   readonly events = input.required<HandlerEvent[]>();
   readonly openSipId = input<string>('');
